@@ -1,0 +1,302 @@
+package steamcmd
+
+import (
+	"bufio"
+	"errors"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/kabroxiko/dayzctl/internal/logger"
+	"github.com/kabroxiko/dayzctl/internal/utils"
+)
+
+// Common errors
+var (
+	ErrRateLimited = errors.New("steam rate limited")
+	ErrLoginFailed = errors.New("steam login failed")
+)
+
+// SteamCmd represents a SteamCMD instance
+type SteamCmd struct {
+	User         string
+	InstallDir   string
+	SteamCmdPath string
+	WorkshopDir  string
+	lastAttempt  time.Time
+	mu           sync.Mutex
+}
+
+// New creates a new SteamCMD instance
+func New(user, installDir, steamCmdPath string) *SteamCmd {
+	if steamCmdPath == "" {
+		steamCmdPath = "/srv/dayz/steamcmd/steamcmd.sh"
+	}
+	return &SteamCmd{
+		User:         user,
+		InstallDir:   installDir,
+		SteamCmdPath: steamCmdPath,
+		WorkshopDir:  "/srv/dayz/workshop",
+	}
+}
+
+// runSteamCmd runs a steamcmd command as the dayz user
+func (s *SteamCmd) runSteamCmd(args ...string) error {
+	cmdStr := fmt.Sprintf("%s %s", s.SteamCmdPath, strings.Join(args, " "))
+	cmd := exec.Command("runuser", "-u", "dayz", "--", "sh", "-c", cmdStr)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+// runSteamCmdWithOutput runs a steamcmd command and returns output
+func (s *SteamCmd) runSteamCmdWithOutput(args ...string) (string, error) {
+	cmdStr := fmt.Sprintf("%s %s", s.SteamCmdPath, strings.Join(args, " "))
+	cmd := exec.Command("runuser", "-u", "dayz", "--", "sh", "-c", cmdStr)
+	output, err := cmd.CombinedOutput()
+	return string(output), err
+}
+
+// GetBuildID retrieves the current build ID from Steam
+func (s *SteamCmd) GetBuildID() (string, error) {
+	if cached := s.getCachedBuildID(); cached != "" {
+		return cached, nil
+	}
+
+	output, err := s.runSteamCmdWithOutput(
+		"+@sSteamCmdForcePlatformType", "linux",
+		"+login", "anonymous",
+		"+app_info_print", "223350",
+		"+quit",
+	)
+	if err != nil {
+		if strings.Contains(output, "Rate Limit Exceeded") {
+			return "", ErrRateLimited
+		}
+		return "", fmt.Errorf("steamcmd failed: %w", err)
+	}
+
+	scanner := bufio.NewScanner(strings.NewReader(output))
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.Contains(line, `"buildid"`) {
+			parts := strings.Fields(line)
+			if len(parts) >= 2 {
+				buildID := strings.Trim(parts[1], `"`)
+				s.cacheBuildID(buildID)
+				return buildID, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("buildid not found in output")
+}
+
+// getCurrentLocalBuildID reads the current local build ID
+func (s *SteamCmd) getCurrentLocalBuildID() (string, error) {
+	appManifestPath := filepath.Join(s.InstallDir, "steamapps", "appmanifest_223350.acf")
+	
+	if _, err := os.Stat(appManifestPath); err == nil {
+		data, err := os.ReadFile(appManifestPath)
+		if err == nil {
+			content := string(data)
+			re := regexp.MustCompile(`"buildid"\s+"(\d+)"`)
+			matches := re.FindStringSubmatch(content)
+			if len(matches) > 1 {
+				return matches[1], nil
+			}
+		}
+	}
+	
+	return s.getCachedBuildID(), nil
+}
+
+// NeedsUpdate checks if the server needs an update
+func (s *SteamCmd) NeedsUpdate() (bool, error) {
+	latestBuildID, err := s.GetBuildID()
+	if err != nil {
+		if errors.Is(err, ErrRateLimited) {
+			return false, err
+		}
+		return false, err
+	}
+	
+	localBuildID, err := s.getCurrentLocalBuildID()
+	if err != nil || localBuildID == "" {
+		logger.Warn("Could not determine local build ID, assuming update needed")
+		return true, nil
+	}
+	
+	logger.Debug("Comparing builds", "local", localBuildID, "latest", latestBuildID)
+	return localBuildID != latestBuildID, nil
+}
+
+// Update updates the DayZ server
+func (s *SteamCmd) Update() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.isRateLimited() {
+		return ErrRateLimited
+	}
+
+	err := s.runSteamCmd(
+		"+@sSteamCmdForcePlatformType", "linux",
+		"+force_install_dir", s.InstallDir,
+		"+login", s.User,
+		"+app_update", "223350", "validate",
+		"+quit",
+	)
+	
+	s.lastAttempt = time.Now()
+	if err != nil {
+		return fmt.Errorf("update failed: %w", err)
+	}
+	return nil
+}
+
+// DownloadMod downloads a mod using anonymous login (like Python version)
+func (s *SteamCmd) DownloadMod(modID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.isRateLimited() {
+		return ErrRateLimited
+	}
+
+	fmt.Printf("[steamcmd] Downloading mod %s...\n", modID)
+
+	if err := os.MkdirAll(s.WorkshopDir, 0755); err != nil {
+		return fmt.Errorf("failed to create workshop directory: %w", err)
+	}
+
+	// Use anonymous login like Python version
+	output, err := s.runSteamCmdWithOutput(
+		"+@sSteamCmdForcePlatformType", "linux",
+		"+login", "anonymous",
+		"+force_install_dir", s.WorkshopDir,
+		"+workshop_download_item", "221100", modID, "validate",
+		"+quit",
+	)
+
+	s.lastAttempt = time.Now()
+	if err != nil {
+		if strings.Contains(output, "Rate Limit Exceeded") {
+			return ErrRateLimited
+		}
+		return fmt.Errorf("mod download failed: %w\nOutput: %s", err, output)
+	}
+
+	if strings.Contains(output, "Success.") {
+		fmt.Printf("[steamcmd] Mod %s downloaded successfully\n", modID)
+		return s.linkMod(modID)
+	}
+
+	if strings.Contains(output, "already downloaded") {
+		fmt.Printf("[steamcmd] Mod %s already downloaded\n", modID)
+		return s.linkMod(modID)
+	}
+
+	return fmt.Errorf("mod %s download failed - check output", modID)
+}
+
+// linkMod creates the symlink for a mod in the workshop directory
+func (s *SteamCmd) linkMod(modID string) error {
+	possiblePaths := []string{
+		filepath.Join(s.WorkshopDir, "steamapps", "workshop", "content", "221100", modID),
+		filepath.Join(s.WorkshopDir, "content", "221100", modID),
+		filepath.Join(s.WorkshopDir, modID),
+		filepath.Join("/home/dayz/Steam/steamapps/workshop/content/221100", modID),
+		filepath.Join("/home/dayz/.steam/steamapps/workshop/content/221100", modID),
+		filepath.Join(s.InstallDir, "steamapps", "workshop", "content", "221100", modID),
+	}
+
+	var srcPath string
+	for _, path := range possiblePaths {
+		if _, err := os.Stat(path); err == nil {
+			srcPath = path
+			logger.Debug("Found mod at", "path", path)
+			break
+		}
+	}
+
+	if srcPath == "" {
+		return fmt.Errorf("mod %s not found in any workshop location", modID)
+	}
+
+	targetPath := filepath.Join(s.WorkshopDir, modID)
+	
+	if _, err := os.Lstat(targetPath); err == nil {
+		if err := os.Remove(targetPath); err != nil {
+			return fmt.Errorf("failed to remove existing symlink: %w", err)
+		}
+	}
+
+	if err := os.Symlink(srcPath, targetPath); err != nil {
+		return fmt.Errorf("failed to create symlink from %s to %s: %w", targetPath, srcPath, err)
+	}
+
+	if err := utils.ChownPath(targetPath); err != nil {
+		logger.Warn("Failed to chown workshop symlink", "path", targetPath, "error", err)
+	}
+
+	fmt.Printf("[steamcmd] Mod %s linked to %s\n", modID, targetPath)
+	return nil
+}
+
+// InteractiveLogin performs an interactive Steam login
+func (s *SteamCmd) InteractiveLogin() error {
+	cmd := exec.Command(
+		"runuser", "-u", "dayz", "--",
+		s.SteamCmdPath, "+login", s.User, "+quit",
+	)
+	
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("interactive login failed: %w", err)
+	}
+	return nil
+}
+
+// isRateLimited checks if we're rate limited
+func (s *SteamCmd) isRateLimited() bool {
+	return time.Since(s.lastAttempt) < 5*time.Minute
+}
+
+// getCachedBuildID retrieves cached build ID
+func (s *SteamCmd) getCachedBuildID() string {
+	cacheFile := "/tmp/steam_buildid_" + s.User
+	data, err := os.ReadFile(cacheFile)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
+}
+
+// cacheBuildID caches the build ID
+func (s *SteamCmd) cacheBuildID(buildID string) {
+	cacheFile := "/tmp/steam_buildid_" + s.User
+	if err := os.WriteFile(cacheFile, []byte(buildID), 0644); err != nil {
+		_ = err
+	}
+}
+
+// GetSteamcmdBin returns the steamcmd binary path
+func (s *SteamCmd) GetSteamcmdBin() string {
+	if s.SteamCmdPath != "" {
+		return s.SteamCmdPath
+	}
+	return "/srv/dayz/steamcmd/steamcmd.sh"
+}
+
+// IsRateLimitError checks if an error is a rate limit error
+func IsRateLimitError(err error) bool {
+	return errors.Is(err, ErrRateLimited)
+}

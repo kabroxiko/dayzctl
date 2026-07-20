@@ -1,0 +1,28 @@
+[Unit]
+Description=DayZ Server Instance {{.Name}}
+After=network.target
+
+[Service]
+User=dayz
+Group=dayz
+Type=simple
+WorkingDirectory={{.ServerDir}}
+ExecStart={{.ServerDir}}/DayZServer \
+    -config={{.ServerDir}}/serverDZ-{{.Name}}.cfg \
+    -port={{.Port}} \
+    -profiles={{.ServerDir}}/profiles/{{.Name}} \
+    -dologs \
+    -adminlog \
+    -netlog \
+    -freezecheck \
+    -battleye={{.BattlEyeDir}} \
+    -mod={{.Mods}} \
+    -servermod={{.ServerMods}}
+Restart=always
+RestartSec=10
+LimitNOFILE=65536
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
