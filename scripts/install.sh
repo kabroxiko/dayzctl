@@ -405,13 +405,6 @@ main() {
 # ============================================================================
 # Parse command line arguments
 # ============================================================================
-# When invoked via: bash -c "$(curl -fsSL URL)" --debug
-# bash assigns the first arg after the -c command string to $0
-# so options like --debug end up in $0 instead of $1. Normalize
-# by copying a leading dash-style $0 into the positional params.
-if [[ "${0:-}" == --* ]]; then
-    set -- "$0" "$@"
-fi
 while [[ $# -gt 0 ]]; do
     case $1 in
         # --version removed: installer always fetches latest dayzctl
