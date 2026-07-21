@@ -14,7 +14,6 @@ debug_log() {
 # Configuration
 # ============================================================================
 DAYZ_HOME="${DAYZ_HOME:-/srv/dayz}"
-DAYZCTL_VERSION="${DAYZCTL_VERSION:-}"
 STEAM_USER="${STEAM_USER:-kqkklan}"
 REINSTALL="${REINSTALL:-0}"
 # Remote template URL (can be overridden via env var SERVER_TEMPLATE_URL)
@@ -383,7 +382,7 @@ main() {
     prompt_for_values
 
     detect_distro
-    debug_log "DAYZ_HOME=$DAYZ_HOME DAYZCTL_VERSION=$DAYZCTL_VERSION STEAM_USER=$STEAM_USER REINSTALL=$REINSTALL"
+    debug_log "DAYZ_HOME=$DAYZ_HOME STEAM_USER=$STEAM_USER REINSTALL=$REINSTALL"
     create_structure
     create_user
     install_deps
@@ -428,10 +427,7 @@ main() {
 # ============================================================================
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --version)
-            DAYZCTL_VERSION="$2"
-            shift 2
-            ;;
+        # --version removed: installer always fetches latest dayzctl
         --debug)
             DEBUG=1
             # --debug: enable only our custom debug_log messages (no shell xtrace)
@@ -460,7 +456,7 @@ while [[ $# -gt 0 ]]; do
             echo "Usage: $0 [OPTIONS]"
             echo ""
             echo "Options:"
-            echo "  --version VERSION  Specify version to install (default: v1.0.0)"
+            echo "  (no --version) Installer always fetches latest dayzctl"
             echo "  --user USER        Steam username to use"
             echo "  --home PATH        Installation directory (default: /srv/dayz)"
             echo "  --reinstall        Force reinstall even if files exist"
