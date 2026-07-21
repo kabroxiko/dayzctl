@@ -1,6 +1,15 @@
 #!/bin/bash
 set -euo pipefail
 
+# Debugging
+DEBUG=${DEBUG:-0}
+
+debug_log() {
+    if [ "$DEBUG" = "1" ]; then
+        echo -e "[install][debug] $*"
+    fi
+}
+
 # ============================================================================
 # Configuration
 # ============================================================================
@@ -68,6 +77,7 @@ detect_distro() {
 # ============================================================================
 create_structure() {
     log "creating structure in $DAYZ_HOME"
+    debug_log "mkdir -p $DAYZ_HOME {config,server,backups,workshop,state,steamcmd}"
     mkdir -p "$DAYZ_HOME" \
              "$DAYZ_HOME/config" \
              "$DAYZ_HOME/server" \
@@ -149,12 +159,14 @@ install_steamcmd() {
     
     mkdir -p "$DAYZ_HOME/steamcmd" || error "Failed to create steamcmd directory"
     chown dayz:dayz "$DAYZ_HOME/steamcmd" || error "Failed to set ownership on steamcmd directory"
-    
+
     cd "$DAYZ_HOME/steamcmd" || error "Failed to cd to steamcmd directory"
-    
+
+    debug_log "running as dayz: curl -sSL https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz | tar -xz"
     runuser -u dayz -- sh -c "curl -sSL https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz | tar -xz" \
         || error "Failed to download/extract SteamCMD"
-    
+
+    debug_log "running as dayz: $DAYZ_HOME/steamcmd/steamcmd.sh +quit"
     runuser -u dayz -- "$DAYZ_HOME/steamcmd/steamcmd.sh" +quit \
         || error "SteamCMD installation test failed"
 }
@@ -344,6 +356,7 @@ main() {
     log ""
     
     detect_distro
+    debug_log "DAYZ_HOME=$DAYZ_HOME DAYZCTL_VERSION=$DAYZCTL_VERSION STEAM_USER=$STEAM_USER REINSTALL=$REINSTALL"
     create_structure
     create_user
     install_deps
@@ -391,6 +404,13 @@ while [[ $# -gt 0 ]]; do
         --version)
             DAYZCTL_VERSION="$2"
             shift 2
+            ;;
+        --debug)
+            DEBUG=1
+            # Enable xtrace with a useful PS4 prefix including timestamp and function
+            export PS4='+[$(date +"%Y-%m-%dT%H:%M:%S%z")][${FUNCNAME[0]:-main}][$LINENO] '
+            set -x
+            shift
             ;;
         --user)
             STEAM_USER="$2"
