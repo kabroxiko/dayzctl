@@ -17,6 +17,42 @@ DAYZ_HOME="${DAYZ_HOME:-/srv/dayz}"
 DAYZCTL_VERSION="${DAYZCTL_VERSION:-v1.0.0}"
 STEAM_USER="${STEAM_USER:-kqkklan}"
 REINSTALL="${REINSTALL:-0}"
+# Remote template URL (can be overridden via env var SERVER_TEMPLATE_URL)
+# Default points to the repository raw file; change if you host elsewhere
+SERVER_TEMPLATE_URL="${SERVER_TEMPLATE_URL:-https://raw.githubusercontent.com/kabroxiko/dayzops/main/scripts/server.yaml.tmpl}"
+
+# Prompt interactively for configuration values when running in a terminal
+prompt_for_values() {
+    if [ ! -t 0 ]; then
+        debug_log "Non-interactive shell; skipping interactive prompts"
+        return 0
+    fi
+
+    echo "Interactive setup — press Enter to accept the default in brackets"
+    input=""
+    read -r -p "Installation directory (DAYZ_HOME) [${DAYZ_HOME}]: " input
+    if [ -n "${input}" ]; then
+        DAYZ_HOME="$input"
+    fi
+
+    input=""
+    read -r -p "dayzctl version (DAYZCTL_VERSION) [${DAYZCTL_VERSION}]: " input
+    if [ -n "${input}" ]; then
+        DAYZCTL_VERSION="$input"
+    fi
+
+    input=""
+    read -r -p "Steam username (STEAM_USER) [${STEAM_USER}]: " input
+    if [ -n "${input}" ]; then
+        STEAM_USER="$input"
+    fi
+
+    input=""
+    read -r -p "Template URL (SERVER_TEMPLATE_URL) [${SERVER_TEMPLATE_URL}]: " input
+    if [ -n "${input}" ]; then
+        SERVER_TEMPLATE_URL="$input"
+    fi
+}
 
 # ============================================================================
 # Colors for output
@@ -263,14 +299,44 @@ create_config() {
     
     log "creating default config"
     
-    # Use template file from scripts/; fail if missing
+    # Use template file from scripts/ if present, otherwise download default
     TEMPLATE_PATH="$(dirname "$0")/server.yaml.tmpl"
-    if [ ! -f "$TEMPLATE_PATH" ]; then
-            error "Config template not found: $TEMPLATE_PATH"
+    if [ -f "$TEMPLATE_PATH" ]; then
+        debug_log "Using local template $TEMPLATE_PATH to create server.yaml"
+        USE_TEMPLATE="$TEMPLATE_PATH"
+    else
+        log "Local template not found at $TEMPLATE_PATH; attempting to download from $SERVER_TEMPLATE_URL"
+        TMP_TEMPLATE="$(mktemp /tmp/server.yaml.tmpl.XXXXXX)" || error "Failed to create temp file for template"
+
+        if command -v curl >/dev/null 2>&1; then
+            if ! curl -fsSL "$SERVER_TEMPLATE_URL" -o "$TMP_TEMPLATE"; then
+                rm -f "$TMP_TEMPLATE"
+                error "Failed to download template from $SERVER_TEMPLATE_URL"
+            fi
+        elif command -v wget >/dev/null 2>&1; then
+            if ! wget -qO "$TMP_TEMPLATE" "$SERVER_TEMPLATE_URL"; then
+                rm -f "$TMP_TEMPLATE"
+                error "Failed to download template from $SERVER_TEMPLATE_URL"
+            fi
+        else
+            rm -f "$TMP_TEMPLATE"
+            error "Neither curl nor wget available to download template"
+        fi
+
+        debug_log "Downloaded template to $TMP_TEMPLATE"
+        USE_TEMPLATE="$TMP_TEMPLATE"
     fi
 
-    debug_log "Using template $TEMPLATE_PATH to create server.yaml"
-    sed "s|%%DAYZ_HOME%%|$DAYZ_HOME|g; s|%%STEAM_USER%%|$STEAM_USER|g" "$TEMPLATE_PATH" > "$DAYZ_HOME/config/server.yaml" || error "Failed to render config template"
+    debug_log "Using template $USE_TEMPLATE to create server.yaml"
+    sed "s|%%DAYZ_HOME%%|$DAYZ_HOME|g; s|%%STEAM_USER%%|$STEAM_USER|g" "$USE_TEMPLATE" > "$DAYZ_HOME/config/server.yaml" || {
+        [ -n "${TMP_TEMPLATE:-}" ] && rm -f "$TMP_TEMPLATE"
+        error "Failed to render config template"
+    }
+
+    # cleanup temporary downloaded template if used
+    if [ -n "${TMP_TEMPLATE:-}" ] && [ -f "$TMP_TEMPLATE" ]; then
+        rm -f "$TMP_TEMPLATE" || warn "Failed to remove temporary template $TMP_TEMPLATE"
+    fi
 
     chown -R dayz:dayz "$DAYZ_HOME/config" || error "Failed to set ownership on config"
     log "config created at $DAYZ_HOME/config/server.yaml"
@@ -292,7 +358,9 @@ main() {
     log "dayzctl: root tool for server management"
     log "dayz user: runs steamcmd and server processes"
     log ""
-    
+    # Ask interactively for configuration when running in a TTY
+    prompt_for_values
+
     detect_distro
     debug_log "DAYZ_HOME=$DAYZ_HOME DAYZCTL_VERSION=$DAYZCTL_VERSION STEAM_USER=$STEAM_USER REINSTALL=$REINSTALL"
     create_structure
