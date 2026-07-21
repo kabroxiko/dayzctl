@@ -14,7 +14,7 @@ debug_log() {
 # Configuration
 # ============================================================================
 DAYZ_HOME="${DAYZ_HOME:-/srv/dayz}"
-DAYZCTL_VERSION="${DAYZCTL_VERSION:-v1.0.0}"
+DAYZCTL_VERSION="${DAYZCTL_VERSION:-}"
 STEAM_USER="${STEAM_USER:-kqkklan}"
 REINSTALL="${REINSTALL:-0}"
 # Remote template URL (can be overridden via env var SERVER_TEMPLATE_URL)
@@ -35,11 +35,7 @@ prompt_for_values() {
         DAYZ_HOME="$input"
     fi
 
-    input=""
-    read -r -p "dayzctl version (DAYZCTL_VERSION) [${DAYZCTL_VERSION}]: " input
-    if [ -n "${input}" ]; then
-        DAYZCTL_VERSION="$input"
-    fi
+    # dayzctl version: installer always fetches latest release (no prompt)
 
     input=""
     read -r -p "Steam username (STEAM_USER) [${STEAM_USER}]: " input
@@ -211,7 +207,7 @@ install_steamcmd() {
 # Install dayzctl binary (runs as root only)
 # ============================================================================
 install_dayzctl() {
-    log "installing dayzctl binary"
+    log "installing dayzctl binary (latest release)"
     
     ARCH=$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/')
     if [ -z "$ARCH" ]; then
@@ -229,11 +225,38 @@ install_dayzctl() {
         log "found local binary: ./build/dayzctl"
         cp ./build/dayzctl /usr/local/bin/dayzctl || error "Failed to copy local binary"
     else
-        # Download from GitHub releases
-        log "downloading dayzctl-linux-${ARCH} version ${DAYZCTL_VERSION}"
-        if ! curl -fsSL -o /usr/local/bin/dayzctl \
-            "https://github.com/kabroxiko/dayzctl/releases/download/${DAYZCTL_VERSION}/dayzctl-linux-${ARCH}"; then
-            error "Failed to download dayzctl binary from GitHub"
+        # Determine latest release asset via GitHub API
+        API_URL="https://api.github.com/repos/kabroxiko/dayzctl/releases/latest"
+        if command -v curl >/dev/null 2>&1; then
+            JSON="$(curl -fsSL "$API_URL")" || error "Failed to fetch latest release info from GitHub"
+        elif command -v wget >/dev/null 2>&1; then
+            JSON="$(wget -qO- "$API_URL")" || error "Failed to fetch latest release info from GitHub"
+        else
+            error "Neither curl nor wget available to query GitHub releases"
+        fi
+
+        # Try to extract browser_download_url for matching asset
+        DL_URL="$(echo "$JSON" | grep -Eo '"browser_download_url":\s*"[^"]+dayzctl-linux-${ARCH}[^"]*"' | sed -E 's/.*"([^"]+)"/\1/' | head -n1)"
+        TAG_NAME="$(echo "$JSON" | grep -Eo '"tag_name":\s*"[^"]+"' | sed -E 's/.*"([^"]+)"/\1/' | head -n1)"
+
+        if [ -z "$DL_URL" ]; then
+            # Fallback to constructing URL with tag name if we have it
+            if [ -n "$TAG_NAME" ]; then
+                DL_URL="https://github.com/kabroxiko/dayzctl/releases/download/${TAG_NAME}/dayzctl-linux-${ARCH}"
+            else
+                error "Failed to determine download URL for latest dayzctl"
+            fi
+        fi
+
+        log "downloading dayzctl from $DL_URL"
+        if command -v curl >/dev/null 2>&1; then
+            if ! curl -fsSL -o /usr/local/bin/dayzctl "$DL_URL"; then
+                error "Failed to download dayzctl binary from $DL_URL"
+            fi
+        else
+            if ! wget -qO /usr/local/bin/dayzctl "$DL_URL"; then
+                error "Failed to download dayzctl binary from $DL_URL"
+            fi
         fi
     fi
     
