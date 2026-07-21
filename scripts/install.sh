@@ -263,77 +263,15 @@ create_config() {
     
     log "creating default config"
     
-    cat > "$DAYZ_HOME/config/server.yaml" << EOF || error "Failed to write config file"
-# DayZ Server Configuration
-# ============================================================================
-# This config is managed by dayzctl (root tool)
-# The dayz user only runs steamcmd, not dayzctl
-# ============================================================================
+    # Use template file from scripts/; fail if missing
+    TEMPLATE_PATH="$(dirname "$0")/server.yaml.tmpl"
+    if [ ! -f "$TEMPLATE_PATH" ]; then
+            error "Config template not found: $TEMPLATE_PATH"
+    fi
 
-# Steam credentials (used by dayz user via steamcmd)
-steam:
-  username: "$STEAM_USER"
+    debug_log "Using template $TEMPLATE_PATH to create server.yaml"
+    sed "s|%%DAYZ_HOME%%|$DAYZ_HOME|g; s|%%STEAM_USER%%|$STEAM_USER|g" "$TEMPLATE_PATH" > "$DAYZ_HOME/config/server.yaml" || error "Failed to render config template"
 
-# Directory paths
-paths:
-  install_dir: "$DAYZ_HOME/server"
-  workshop_dir: "$DAYZ_HOME/workshop"
-  mods_dir: "$DAYZ_HOME/server"
-  backups_dir: "$DAYZ_HOME/backups"
-  state_dir: "$DAYZ_HOME/state"
-  storage_dir: null
-  steamcmd_bin: "$DAYZ_HOME/steamcmd/steamcmd.sh"
-
-# Server instances (managed by root via systemd)
-instances:
-  - name: main
-    instanceId: 1
-    port: 2302
-    steam_query_port: 27016
-    template: dayzOffline.chernarusplus
-    hostname: "DayZ Server"
-    max_players: 60
-    enabled: true
-    rcon:
-      enabled: true
-      port: 2306
-      password: rcon123
-    mods: []
-    servermods: []
-
-  - name: solo
-    instanceId: 2
-    port: 2303
-    steam_query_port: 27017
-    template: dayzOffline.chernarusplus
-    hostname: "DayZ Solo Server"
-    max_players: 30
-    enabled: true
-    rcon:
-      enabled: true
-      port: 2307
-      password: rcon123
-    mods: []
-    servermods: []
-
-# Backup settings (managed by root)
-backup:
-  enabled: true
-  retention_days: 14
-  keep_daily: 7
-  keep_weekly: 4
-
-# Update settings (root runs dayzctl update, which calls steamcmd as dayz)
-updates:
-  enabled: true
-  schedule: "04:00"
-
-# Healthcheck settings
-healthcheck:
-  enabled: true
-  startup_timeout: 300
-EOF
-    
     chown -R dayz:dayz "$DAYZ_HOME/config" || error "Failed to set ownership on config"
     log "config created at $DAYZ_HOME/config/server.yaml"
 }
