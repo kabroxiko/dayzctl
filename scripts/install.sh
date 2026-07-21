@@ -407,7 +407,12 @@ while [[ $# -gt 0 ]]; do
             ;;
         --debug)
             DEBUG=1
-            # Enable xtrace with a useful PS4 prefix including timestamp and function
+            # --debug: enable only our custom debug_log messages (no shell xtrace)
+            shift
+            ;;
+        --trace)
+            DEBUG=1
+            # --trace: enable full shell xtrace with timestamped PS4
             export PS4='+[$(date +"%Y-%m-%dT%H:%M:%S%z")][${FUNCNAME[0]:-main}][$LINENO] '
             set -x
             shift
