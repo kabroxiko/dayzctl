@@ -11,6 +11,7 @@ import (
 	"text/template"
 
 	"github.com/kabroxiko/dayzctl/internal/config"
+	"github.com/kabroxiko/dayzctl/internal/logger"
 )
 
 //go:embed templates/update.service.tmpl
