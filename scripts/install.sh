@@ -16,6 +16,7 @@ debug_log() {
 DAYZ_HOME="${DAYZ_HOME:-/srv/dayz}"
 STEAM_USER="${STEAM_USER:-kqkklan}"
 REINSTALL="${REINSTALL:-0}"
+DEFAULT_TEMPLATE_URL="https://raw.githubusercontent.com/kabroxiko/dayzops/main/scripts/server.yaml.tmpl"
 
 # Prompt interactively for configuration values when running in a terminal
 prompt_for_values() {
@@ -24,48 +25,40 @@ prompt_for_values() {
         return 0
     fi
 
-    echo "Interactive setup — press Enter to accept the default in brackets"
+    log "Interactive setup — press Enter to accept the default in brackets"
     input=""
     read -r -p "Installation directory (DAYZ_HOME) [${DAYZ_HOME}]: " input
-    # Use the default template URL bundled in the installer
-    TEMPLATE_URL="https://raw.githubusercontent.com/kabroxiko/dayzops/main/scripts/server.yaml.tmpl"
-
-    if [ -t 0 ]; then
-        read -r -p "Download default template from ${TEMPLATE_URL}? [Y/n]: " yn
-        case "${yn:-Y}" in
-            [Nn]*)
-                error "Template download declined; aborting."
-                ;;
-            *)
-                ;;
-        esac
+    if [ -n "${input}" ]; then
+        DAYZ_HOME="$input"
     fi
 
-    TMP_TEMPLATE="$(mktemp /tmp/server.yaml.tmpl.XXXXXX)" || error "Failed to create temp file for template"
-
-    if command -v curl >/dev/null 2>&1; then
-        if ! curl -fsSL "$TEMPLATE_URL" -o "$TMP_TEMPLATE"; then
-            rm -f "$TMP_TEMPLATE"
-            error "Failed to download template"
-        fi
-    elif command -v wget >/dev/null 2>&1; then
-        if ! wget -qO "$TMP_TEMPLATE" "$TEMPLATE_URL"; then
-            rm -f "$TMP_TEMPLATE"
-            error "Failed to download template"
-        fi
-    else
-        rm -f "$TMP_TEMPLATE"
-        error "Neither curl nor wget available to download template"
+    input=""
+    read -r -p "Steam username (STEAM_USER) [${STEAM_USER}]: " input
+    if [ -n "${input}" ]; then
+        STEAM_USER="$input"
     fi
 
-    debug_log "Downloaded template to $TMP_TEMPLATE"
+}
+# ============================================================================
+# Colors for output
+# ============================================================================
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
 
-    sed "s|%%DAYZ_HOME%%|$DAYZ_HOME|g; s|%%STEAM_USER%%|$STEAM_USER|g" "$TMP_TEMPLATE" > "$DAYZ_HOME/config/server.yaml" || {
-        rm -f "$TMP_TEMPLATE"
-        error "Failed to render config template"
-    }
+log() { echo -e "${GREEN}[install]${NC} $*"; }
+warn() { echo -e "${YELLOW}[install] WARNING:${NC} $*" >&2; }
+error() { echo -e "${RED}[install] ERROR:${NC} $*" >&2; exit 1; }
 
-    rm -f "$TMP_TEMPLATE" || warn "Failed to remove temporary template $TMP_TEMPLATE"
+# ============================================================================
+# Check root privileges
+# ============================================================================
+if [ "$EUID" -ne 0 ]; then
+    error "Please run as root"
+fi
+
+# ============================================================================
 # Detect distribution
 # ============================================================================
 detect_distro() {
@@ -308,7 +301,7 @@ install_bercon_cli() {
 }
 
 # ============================================================================
-# Create default server.yaml config (always download fixed template)
+# Create default server.yaml config (always download template)
 # ============================================================================
 create_config() {
     if [ -f "$DAYZ_HOME/config/server.yaml" ] && [ "$REINSTALL" != "1" ]; then
@@ -318,25 +311,16 @@ create_config() {
 
     log "creating default config"
 
-    TEMPLATE_URL="https://raw.githubusercontent.com/kabroxiko/dayzops/main/scripts/server.yaml.tmpl"
-
-    if [ -t 0 ]; then
-        read -r -p "Download default template from ${TEMPLATE_URL}? [Y/n]: " yn
-        case "${yn:-Y}" in
-            [Nn]*) error "Template download declined; aborting." ;;
-            *) ;;
-        esac
-    fi
-
+    log "Downloading default template"
     TMP_TEMPLATE="$(mktemp /tmp/server.yaml.tmpl.XXXXXX)" || error "Failed to create temp file for template"
 
     if command -v curl >/dev/null 2>&1; then
-        if ! curl -fsSL "$TEMPLATE_URL" -o "$TMP_TEMPLATE"; then
+        if ! curl -fsSL "$DEFAULT_TEMPLATE_URL" -o "$TMP_TEMPLATE"; then
             rm -f "$TMP_TEMPLATE"
             error "Failed to download template"
         fi
     elif command -v wget >/dev/null 2>&1; then
-        if ! wget -qO "$TMP_TEMPLATE" "$TEMPLATE_URL"; then
+        if ! wget -qO "$TMP_TEMPLATE" "$DEFAULT_TEMPLATE_URL"; then
             rm -f "$TMP_TEMPLATE"
             error "Failed to download template"
         fi
@@ -352,7 +336,7 @@ create_config() {
         error "Failed to render config template"
     }
 
-    rm -f "$TMP_TEMPLATE" || warn "Failed to remove temporary template $TMP_TEMPLATE"
+    rm -f "$TMP_TEMPLATE" || warn "Failed to remove temporary template"
 
     chown -R dayz:dayz "$DAYZ_HOME/config" || error "Failed to set ownership on config"
     log "config created at $DAYZ_HOME/config/server.yaml"
@@ -423,7 +407,7 @@ main() {
 # ============================================================================
 while [[ $# -gt 0 ]]; do
     case $1 in
-        
+        # --version removed: installer always fetches latest dayzctl
         --debug)
             DEBUG=1
             # --debug: enable only our custom debug_log messages (no shell xtrace)
@@ -449,18 +433,18 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --help|-h)
-            echo "Usage: $0 [OPTIONS]"
-            echo ""
-            echo "Options:"
-            echo "  (no --version) Installer always fetches latest dayzctl"
-            echo "  --user USER        Steam username to use"
-            echo "  --home PATH        Installation directory (default: /srv/dayz)"
-            echo "  --reinstall        Force reinstall even if files exist"
-            echo "  --help, -h         Show this help"
-            echo ""
-            echo "Architecture:"
-            echo "  dayzctl runs as root (system management)"
-            echo "  dayz user runs steamcmd and server processes"
+                log "Usage: $0 [OPTIONS]"
+                log ""
+                log "Options:"
+                log "  (no --version) Installer always fetches latest dayzctl"
+                log "  --user USER        Steam username to use"
+                log "  --home PATH        Installation directory (default: /srv/dayz)"
+                log "  --reinstall        Force reinstall even if files exist"
+                log "  --help, -h         Show this help"
+                log ""
+                log "Architecture:"
+                log "  dayzctl runs as root (system management)"
+                log "  dayz user runs steamcmd and server processes"
             exit 0
             ;;
         *)
