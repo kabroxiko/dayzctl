@@ -20,20 +20,26 @@ DEFAULT_TEMPLATE_URL="https://raw.githubusercontent.com/kabroxiko/dayzops/main/s
 
 # Prompt interactively for configuration values when running in a terminal
 prompt_for_values() {
-    if [ ! -t 0 ]; then
-        debug_log "Non-interactive shell; skipping interactive prompts"
+    # Try to prompt interactively. If stdin is a TTY, read normally.
+    # If stdin is not a TTY (pipe), attempt to read from /dev/tty so
+    # the installer still asks the user when piped into bash.
+    PROMPT_FD=/dev/tty
+    if [ -t 0 ]; then
+        PROMPT_FD=0
+    elif [ ! -c /dev/tty ]; then
+        debug_log "Non-interactive shell and no /dev/tty; skipping interactive prompts"
         return 0
     fi
 
     log "Interactive setup — press Enter to accept the default in brackets"
     input=""
-    read -r -p "Installation directory (DAYZ_HOME) [${DAYZ_HOME}]: " input
+    read -r -p "Installation directory (DAYZ_HOME) [${DAYZ_HOME}]: " input < "$PROMPT_FD"
     if [ -n "${input}" ]; then
         DAYZ_HOME="$input"
     fi
 
     input=""
-    read -r -p "Steam username (STEAM_USER) [${STEAM_USER}]: " input
+    read -r -p "Steam username (STEAM_USER) [${STEAM_USER}]: " input < "$PROMPT_FD"
     if [ -n "${input}" ]; then
         STEAM_USER="$input"
     fi
