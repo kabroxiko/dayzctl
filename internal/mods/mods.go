@@ -187,7 +187,8 @@ func (m *Manager) syncMod(modRef config.ModRef, isServerMod bool) error {
 		return fmt.Errorf("failed to create symlink from %s to %s: %w", srcPath, destPath, err)
 	}
 
-	if err := utils.ChownPath(destPath); err != nil {
+	// Use ChownSymlink to change only the symlink itself, not the target
+	if err := utils.ChownSymlink(destPath); err != nil {
 		logger.Warn("Failed to chown symlink", "path", destPath, "error", err)
 	}
 

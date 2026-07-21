@@ -18,3 +18,9 @@ func EnsureDir(path string, perm os.FileMode) error {
 	}
 	return ChownPath(path)
 }
+
+// ChownSymlink changes ownership of a symlink only (not the target)
+func ChownSymlink(path string) error {
+	cmd := exec.Command("chown", "-h", "dayz:dayz", path)
+	return cmd.Run()
+}

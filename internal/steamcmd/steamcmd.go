@@ -159,7 +159,7 @@ func (s *SteamCmd) Update() error {
 	return nil
 }
 
-// DownloadMod downloads a mod using anonymous login (like Python version)
+// DownloadMod downloads a mod using anonymous login
 func (s *SteamCmd) DownloadMod(modID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -174,7 +174,6 @@ func (s *SteamCmd) DownloadMod(modID string) error {
 		return fmt.Errorf("failed to create workshop directory: %w", err)
 	}
 
-	// Use anonymous login like Python version
 	output, err := s.runSteamCmdWithOutput(
 		"+@sSteamCmdForcePlatformType", "linux",
 		"+login", "anonymous",
@@ -191,13 +190,8 @@ func (s *SteamCmd) DownloadMod(modID string) error {
 		return fmt.Errorf("mod download failed: %w\nOutput: %s", err, output)
 	}
 
-	if strings.Contains(output, "Success.") {
+	if strings.Contains(output, "Success.") || strings.Contains(output, "already downloaded") {
 		fmt.Printf("[steamcmd] Mod %s downloaded successfully\n", modID)
-		return s.linkMod(modID)
-	}
-
-	if strings.Contains(output, "already downloaded") {
-		fmt.Printf("[steamcmd] Mod %s already downloaded\n", modID)
 		return s.linkMod(modID)
 	}
 
@@ -240,7 +234,8 @@ func (s *SteamCmd) linkMod(modID string) error {
 		return fmt.Errorf("failed to create symlink from %s to %s: %w", targetPath, srcPath, err)
 	}
 
-	if err := utils.ChownPath(targetPath); err != nil {
+	// Use ChownSymlink to change only the symlink itself, not the target
+	if err := utils.ChownSymlink(targetPath); err != nil {
 		logger.Warn("Failed to chown workshop symlink", "path", targetPath, "error", err)
 	}
 
