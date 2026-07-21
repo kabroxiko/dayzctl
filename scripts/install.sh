@@ -1,13 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
-# Debugging
-DEBUG=${DEBUG:-0}
-
+# Debugging helper — print debug lines as normal colored install messages
 debug_log() {
-    if [ "$DEBUG" = "1" ]; then
-        echo -e "[install][debug] $*"
-    fi
+    log "[debug] $*"
 }
 
 # ============================================================================
@@ -20,26 +16,20 @@ DEFAULT_TEMPLATE_URL="https://raw.githubusercontent.com/kabroxiko/dayzops/main/s
 
 # Prompt interactively for configuration values when running in a terminal
 prompt_for_values() {
-    # Try to prompt interactively. If stdin is a TTY, read normally.
-    # If stdin is not a TTY (pipe), attempt to read from /dev/tty so
-    # the installer still asks the user when piped into bash.
-    PROMPT_FD=/dev/tty
-    if [ -t 0 ]; then
-        PROMPT_FD=0
-    elif [ ! -c /dev/tty ]; then
-        debug_log "Non-interactive shell and no /dev/tty; skipping interactive prompts"
+    if [ ! -t 0 ]; then
+        debug_log "Non-interactive shell; skipping interactive prompts"
         return 0
     fi
 
     log "Interactive setup — press Enter to accept the default in brackets"
     input=""
-    read -r -p "Installation directory (DAYZ_HOME) [${DAYZ_HOME}]: " input < "$PROMPT_FD"
+    read -r -p "Installation directory (DAYZ_HOME) [${DAYZ_HOME}]: " input
     if [ -n "${input}" ]; then
         DAYZ_HOME="$input"
     fi
 
     input=""
-    read -r -p "Steam username (STEAM_USER) [${STEAM_USER}]: " input < "$PROMPT_FD"
+    read -r -p "Steam username (STEAM_USER) [${STEAM_USER}]: " input
     if [ -n "${input}" ]; then
         STEAM_USER="$input"
     fi
@@ -414,18 +404,7 @@ main() {
 while [[ $# -gt 0 ]]; do
     case $1 in
         # --version removed: installer always fetches latest dayzctl
-        --debug)
-            DEBUG=1
-            # --debug: enable only our custom debug_log messages (no shell xtrace)
-            shift
-            ;;
-        --trace)
-            DEBUG=1
-            # --trace: enable full shell xtrace with timestamped PS4
-            export PS4='+[$(date +"%Y-%m-%dT%H:%M:%S%z")][${FUNCNAME[0]:-main}][$LINENO] '
-            set -x
-            shift
-            ;;
+        # --debug and --trace removed; debug messages are printed as normal
         --user)
             STEAM_USER="$2"
             shift 2
