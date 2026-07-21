@@ -48,18 +48,30 @@ func New(user, installDir, steamCmdPath string) *SteamCmd {
 // runSteamCmd runs a steamcmd command as the dayz user
 func (s *SteamCmd) runSteamCmd(args ...string) error {
 	cmdStr := fmt.Sprintf("%s %s", s.SteamCmdPath, strings.Join(args, " "))
+	logger.Debug("Executing steamcmd", "cmd", cmdStr, "user", s.User, "installDir", s.InstallDir)
 	cmd := exec.Command("runuser", "-u", "dayz", "--", "sh", "-c", cmdStr)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	if err := cmd.Run(); err != nil {
+		logger.Warn("steamcmd run failed", "cmd", cmdStr, "error", err)
+		return err
+	}
+	return nil
 }
 
 // runSteamCmdWithOutput runs a steamcmd command and returns output
 func (s *SteamCmd) runSteamCmdWithOutput(args ...string) (string, error) {
 	cmdStr := fmt.Sprintf("%s %s", s.SteamCmdPath, strings.Join(args, " "))
+	logger.Debug("Executing steamcmd (with output)", "cmd", cmdStr, "user", s.User, "installDir", s.InstallDir)
 	cmd := exec.Command("runuser", "-u", "dayz", "--", "sh", "-c", cmdStr)
 	output, err := cmd.CombinedOutput()
-	return string(output), err
+	outStr := string(output)
+	if err != nil {
+		logger.Warn("steamcmd returned error", "cmd", cmdStr, "error", err, "output", outStr)
+	} else {
+		logger.Debug("steamcmd output", "cmd", cmdStr)
+	}
+	return outStr, err
 }
 
 // GetBuildID retrieves the current build ID from Steam
@@ -144,6 +156,7 @@ func (s *SteamCmd) Update() error {
 		return ErrRateLimited
 	}
 
+	logger.Debug("Preparing steamcmd update", "installDir", s.InstallDir, "user", s.User)
 	err := s.runSteamCmd(
 		"+@sSteamCmdForcePlatformType", "linux",
 		"+force_install_dir", s.InstallDir,
@@ -169,6 +182,7 @@ func (s *SteamCmd) DownloadMod(modID string) error {
 	}
 
 	fmt.Printf("[steamcmd] Downloading mod %s...\n", modID)
+	logger.Debug("Downloading mod via steamcmd", "modID", modID, "workshopDir", s.WorkshopDir, "installDir", s.InstallDir)
 
 	if err := os.MkdirAll(s.WorkshopDir, 0755); err != nil {
 		return fmt.Errorf("failed to create workshop directory: %w", err)
@@ -245,16 +259,19 @@ func (s *SteamCmd) linkMod(modID string) error {
 
 // InteractiveLogin performs an interactive Steam login
 func (s *SteamCmd) InteractiveLogin() error {
+	cmdStr := fmt.Sprintf("%s +login %s +quit", s.SteamCmdPath, s.User)
+	logger.Debug("Starting interactive steamcmd login", "cmd", cmdStr, "user", s.User)
 	cmd := exec.Command(
 		"runuser", "-u", "dayz", "--",
-		s.SteamCmdPath, "+login", s.User, "+quit",
+		"sh", "-c", cmdStr,
 	)
-	
+
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
+		logger.Warn("interactive login failed", "cmd", cmdStr, "error", err)
 		return fmt.Errorf("interactive login failed: %w", err)
 	}
 	return nil
