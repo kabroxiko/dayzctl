@@ -289,54 +289,52 @@ install_bercon_cli() {
 }
 
 # ============================================================================
-# Create default server.yaml config
+# Create default server.yaml config (always download template)
 # ============================================================================
 create_config() {
     if [ -f "$DAYZ_HOME/config/server.yaml" ] && [ "$REINSTALL" != "1" ]; then
         log "config already exists in $DAYZ_HOME/config/server.yaml (preserved)"
         return 0
     fi
-    
+
     log "creating default config"
-    
-    # Use template file from scripts/ if present, otherwise download default
-    TEMPLATE_PATH="$(dirname "$0")/server.yaml.tmpl"
-    if [ -f "$TEMPLATE_PATH" ]; then
-        debug_log "Using local template $TEMPLATE_PATH to create server.yaml"
-        USE_TEMPLATE="$TEMPLATE_PATH"
-    else
-        log "Local template not found at $TEMPLATE_PATH; attempting to download from $SERVER_TEMPLATE_URL"
-        TMP_TEMPLATE="$(mktemp /tmp/server.yaml.tmpl.XXXXXX)" || error "Failed to create temp file for template"
 
-        if command -v curl >/dev/null 2>&1; then
-            if ! curl -fsSL "$SERVER_TEMPLATE_URL" -o "$TMP_TEMPLATE"; then
-                rm -f "$TMP_TEMPLATE"
-                error "Failed to download template from $SERVER_TEMPLATE_URL"
-            fi
-        elif command -v wget >/dev/null 2>&1; then
-            if ! wget -qO "$TMP_TEMPLATE" "$SERVER_TEMPLATE_URL"; then
-                rm -f "$TMP_TEMPLATE"
-                error "Failed to download template from $SERVER_TEMPLATE_URL"
-            fi
-        else
-            rm -f "$TMP_TEMPLATE"
-            error "Neither curl nor wget available to download template"
+    # Always download template from SERVER_TEMPLATE_URL (never use local template)
+    if [ -t 0 ]; then
+        echo "Installer will download the template. Press Enter to use the default URL or provide another."
+        read -r -p "Template URL [${SERVER_TEMPLATE_URL}]: " input
+        if [ -n "${input}" ]; then
+            SERVER_TEMPLATE_URL="$input"
         fi
-
-        debug_log "Downloaded template to $TMP_TEMPLATE"
-        USE_TEMPLATE="$TMP_TEMPLATE"
+    else
+        log "Non-interactive shell: using template URL $SERVER_TEMPLATE_URL"
     fi
 
-    debug_log "Using template $USE_TEMPLATE to create server.yaml"
-    sed "s|%%DAYZ_HOME%%|$DAYZ_HOME|g; s|%%STEAM_USER%%|$STEAM_USER|g" "$USE_TEMPLATE" > "$DAYZ_HOME/config/server.yaml" || {
-        [ -n "${TMP_TEMPLATE:-}" ] && rm -f "$TMP_TEMPLATE"
+    TMP_TEMPLATE="$(mktemp /tmp/server.yaml.tmpl.XXXXXX)" || error "Failed to create temp file for template"
+
+    if command -v curl >/dev/null 2>&1; then
+        if ! curl -fsSL "$SERVER_TEMPLATE_URL" -o "$TMP_TEMPLATE"; then
+            rm -f "$TMP_TEMPLATE"
+            error "Failed to download template from $SERVER_TEMPLATE_URL"
+        fi
+    elif command -v wget >/dev/null 2>&1; then
+        if ! wget -qO "$TMP_TEMPLATE" "$SERVER_TEMPLATE_URL"; then
+            rm -f "$TMP_TEMPLATE"
+            error "Failed to download template from $SERVER_TEMPLATE_URL"
+        fi
+    else
+        rm -f "$TMP_TEMPLATE"
+        error "Neither curl nor wget available to download template"
+    fi
+
+    debug_log "Downloaded template to $TMP_TEMPLATE"
+
+    sed "s|%%DAYZ_HOME%%|$DAYZ_HOME|g; s|%%STEAM_USER%%|$STEAM_USER|g" "$TMP_TEMPLATE" > "$DAYZ_HOME/config/server.yaml" || {
+        rm -f "$TMP_TEMPLATE"
         error "Failed to render config template"
     }
 
-    # cleanup temporary downloaded template if used
-    if [ -n "${TMP_TEMPLATE:-}" ] && [ -f "$TMP_TEMPLATE" ]; then
-        rm -f "$TMP_TEMPLATE" || warn "Failed to remove temporary template $TMP_TEMPLATE"
-    fi
+    rm -f "$TMP_TEMPLATE" || warn "Failed to remove temporary template $TMP_TEMPLATE"
 
     chown -R dayz:dayz "$DAYZ_HOME/config" || error "Failed to set ownership on config"
     log "config created at $DAYZ_HOME/config/server.yaml"
