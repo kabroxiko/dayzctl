@@ -36,6 +36,8 @@ func GenerateBattlEyeConfig(cfg *config.ServerConfig, tmplContent string) error 
 func generateInstanceBattlEye(installDir string, instance config.Instance, data ServerConfigData, tmpl *template.Template) error {
 	beDir := filepath.Join(installDir, "battleye-"+instance.Name)
 
+	logger.Debug("Generating BattlEye config", "installDir", installDir, "beDir", beDir, "instance", instance.Name)
+
 	if err := os.MkdirAll(beDir, 0755); err != nil {
 		return fmt.Errorf("failed to create battleye directory: %w", err)
 	}
@@ -48,14 +50,18 @@ func generateInstanceBattlEye(installDir string, instance config.Instance, data 
 	content := buf.Bytes()
 
 	// Write BEServer.cfg (Linux primary - case sensitive!)
-	if err := os.WriteFile(filepath.Join(beDir, "BEServer.cfg"), content, 0644); err != nil {
+	beserverPath := filepath.Join(beDir, "BEServer.cfg")
+	if err := os.WriteFile(beserverPath, content, 0644); err != nil {
 		return fmt.Errorf("failed to write BEServer.cfg: %w", err)
 	}
+	logger.Debug("Wrote BEServer.cfg", "path", beserverPath)
 
 	// Write beserver_x64.cfg (for compatibility)
-	if err := os.WriteFile(filepath.Join(beDir, "beserver_x64.cfg"), content, 0644); err != nil {
+	beserverLowerPath := filepath.Join(beDir, "beserver_x64.cfg")
+	if err := os.WriteFile(beserverLowerPath, content, 0644); err != nil {
 		return fmt.Errorf("failed to write beserver_x64.cfg: %w", err)
 	}
+	logger.Debug("Wrote beserver_x64.cfg", "path", beserverLowerPath)
 
 	// Create symlink for .so file (beserver_x64.so - lowercase!)
 	linkPath := filepath.Join(beDir, "beserver_x64.so")
@@ -66,9 +72,11 @@ func generateInstanceBattlEye(installDir string, instance config.Instance, data 
 	}
 
 	// Create symlink to main battleye directory
-	if err := os.Symlink("../battleye/beserver_x64.so", linkPath); err != nil {
+	symlinkTarget := "../battleye/beserver_x64.so"
+	if err := os.Symlink(symlinkTarget, linkPath); err != nil {
 		return fmt.Errorf("failed to create symlink for beserver_x64.so: %w", err)
 	}
+	logger.Debug("Created symlink for beserver_x64.so", "link", linkPath, "target", symlinkTarget)
 
 	// Chown the symlink only (not the target)
 	if err := utils.ChownSymlink(linkPath); err != nil {

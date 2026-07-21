@@ -144,16 +144,19 @@ func (s *Systemd) GenerateUnits(cfg *config.ServerConfig) error {
 	}
 
 	installDir := cfg.GetInstallDir()
+	logger.Debug("Generating systemd units", "installDir", installDir)
 
 	for _, instance := range cfg.GetEnabledInstances() {
+		beDir := filepath.Join(installDir, "battleye-"+instance.Name)
 		data := InstanceData{
 			Name:        instance.Name,
 			Port:        instance.Port,
 			ServerDir:   installDir,
-			BattlEyeDir: filepath.Join(installDir, "battleye-"+instance.Name),
+			BattlEyeDir: beDir,
 			Mods:        formatModsForSystemd(instance.Mods),
 			ServerMods:  formatModsForSystemd(instance.ServerMods),
 		}
+		logger.Debug("Instance unit data", "instance", instance.Name, "beDir", beDir)
 
 		var svcBuf bytes.Buffer
 		if err := svcTmpl.Execute(&svcBuf, data); err != nil {
