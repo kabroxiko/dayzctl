@@ -8,6 +8,8 @@ import (
 	"text/template"
 
 	"github.com/kabroxiko/dayzctl/internal/config"
+	"github.com/kabroxiko/dayzctl/internal/logger"
+	"github.com/kabroxiko/dayzctl/internal/utils"
 )
 
 // GenerateBattlEyeConfig generates BEServer.cfg for all instances
@@ -66,6 +68,11 @@ func generateInstanceBattlEye(installDir string, instance config.Instance, data 
 	// Create symlink to main battleye directory
 	if err := os.Symlink("../battleye/beserver_x64.so", linkPath); err != nil {
 		return fmt.Errorf("failed to create symlink for beserver_x64.so: %w", err)
+	}
+
+	// Chown the symlink only (not the target)
+	if err := utils.ChownSymlink(linkPath); err != nil {
+		logger.Warn("Failed to chown battleye symlink", "path", linkPath, "error", err)
 	}
 
 	return nil
