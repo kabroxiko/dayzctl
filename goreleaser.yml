@@ -28,7 +28,15 @@ builds:
       - -X github.com/kabroxiko/dayzctl/internal/version.Version={{.Version}}
       - -X github.com/kabroxiko/dayzctl/internal/version.BuildTime={{.Date}}
 
-# Native: GoReleaser automatically creates a manifest with all artifacts
+# Native SBOM generation - no scripts needed
+sboms:
+  - id: manifest
+    artifacts: binary
+    documents:
+      - "manifest.json"
+    # SPDX JSON format - standard SBOM format
+    format: spdx-json
+
 release:
   github:
     owner: kabroxiko
@@ -37,7 +45,9 @@ release:
   prerelease: auto
   mode: replace
   name_template: "{{.ProjectName}} {{.Version}}"
-  # The manifest is auto-generated with all artifact names and checksums
+  # Manifest automatically included via SBOM
+  extra_files:
+    - glob: manifest.json
 
 archives:
   - id: binary
@@ -47,16 +57,6 @@ archives:
 checksum:
   name_template: "checksums.txt"
   algorithm: sha256
-  # This generates a manifest-like file with all checksums
-
-# Add a custom manifest file with version info
-# This gets created during the build using Go template
-sboms:
-  - id: manifest
-    artifacts: binary
-    documents:
-      - "manifest.json"
-    # GoReleaser can generate SBOMs which are essentially manifests
 
 changelog:
   sort: asc

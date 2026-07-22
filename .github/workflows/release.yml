@@ -30,12 +30,6 @@ jobs:
           go-version: '1.26'
           cache: true
 
-      - name: Generate manifest
-        run: |
-          chmod +x scripts/generate-manifest.sh
-          ./scripts/generate-manifest.sh
-          cat manifest.json
-
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v7
         with:
@@ -44,3 +38,19 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify SBOM manifest
+        run: |
+          if [ -f dist/manifest.json ]; then
+            echo "✅ SBOM manifest generated successfully"
+            cat dist/manifest.json | jq '.' | head -20
+          else
+            echo "❌ SBOM manifest not found"
+            exit 1
+          fi
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: release
+          path: dist/*

@@ -75,3 +75,44 @@ jobs:
         run: |
           go mod download
           go build -o /dev/null ./cmd/dayzctl
+
+  # Verify SBOM generation works
+  verify-sbom:
+    name: Verify SBOM Generation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - name: Run GoReleaser (test)
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          version: '~> v2'
+          args: release --clean --snapshot --skip=validate
+
+      - name: Verify SBOM manifest
+        run: |
+          if [ -f dist/manifest.json ]; then
+            echo "✅ SBOM manifest generated successfully"
+            # Verify it's valid JSON
+            cat dist/manifest.json | jq '.' > /dev/null
+            echo "✅ SBOM manifest is valid JSON"
+            # Check if it contains packages
+            if cat dist/manifest.json | jq -e '.packages | length > 0' > /dev/null; then
+              echo "✅ SBOM contains packages"
+              echo "Package count: $(cat dist/manifest.json | jq '.packages | length')"
+            else
+              echo "❌ SBOM contains no packages"
+              exit 1
+            fi
+          else
+            echo "❌ SBOM manifest not found"
+            exit 1
+          fi
