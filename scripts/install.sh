@@ -235,28 +235,27 @@ install_dayzctl() {
         error "Failed to download manifest from $MANIFEST_URL"
     fi
     
-    # Extract version from SPDX manifest
+    # Extract version from SPDX manifest (top-level versionInfo)
     VERSION=$(echo "$MANIFEST" | grep -o '"versionInfo":"[^"]*"' | head -1 | sed 's/"versionInfo":"\([^"]*\)"/\1/')
     
-    # Find the asset for our OS/ARCH from SPDX packages
+    # Find our asset
     ASSET_NAME="dayzctl-${OS}-${ARCH}"
     if [ "$OS" = "windows" ]; then
         ASSET_NAME="${ASSET_NAME}.exe"
     fi
     
-    # Verify the asset exists in the manifest
-    if ! echo "$MANIFEST" | grep -q "\"name\":\"${ASSET_NAME}\""; then
-        error "Asset ${ASSET_NAME} not found in manifest"
-    fi
-    
-    # Get checksum from manifest for verification
+    # Extract checksum for our asset from SPDX packages
     CHECKSUM=$(echo "$MANIFEST" | grep -A 10 "\"name\":\"${ASSET_NAME}\"" | grep -o '"checksumValue":"[^"]*"' | head -1 | sed 's/"checksumValue":"\([^"]*\)"/\1/')
     
     if [ -z "$VERSION" ]; then
         error "Failed to parse version from manifest"
     fi
     
-    log "Latest version: $VERSION"
+    if [ -z "$CHECKSUM" ]; then
+        log "Warning: No checksum found for ${ASSET_NAME} in manifest"
+    fi
+    
+    log "Latest version: v${VERSION}"
     log "Asset: $ASSET_NAME"
     [ -n "$CHECKSUM" ] && log "Expected checksum: $CHECKSUM"
     
@@ -264,7 +263,6 @@ install_dayzctl() {
     DL_URL="https://github.com/kabroxiko/dayzctl/releases/download/v${VERSION}/${ASSET_NAME}"
     log "Downloading from: $DL_URL"
     
-    # Download to temp file for checksum verification
     TMP_FILE=$(mktemp)
     
     if command -v curl >/dev/null 2>&1; then
