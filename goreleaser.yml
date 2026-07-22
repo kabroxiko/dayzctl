@@ -28,14 +28,14 @@ builds:
       - -X github.com/kabroxiko/dayzctl/internal/version.Version={{.Version}}
       - -X github.com/kabroxiko/dayzctl/internal/version.BuildTime={{.Date}}
 
-# Native SBOM generation - includes version in SPDX format
+# Native SBOM generation - corrected syntax
 sboms:
   - id: manifest
     artifacts: binary
     documents:
       - "manifest.json"
-    formats:
-      - spdx-json
+    # Use 'format' (singular), not 'formats'
+    format: spdx-json
 
 release:
   github:
