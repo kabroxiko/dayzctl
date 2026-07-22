@@ -195,6 +195,8 @@ install_dayzctl() {
     log "installing dayzctl binary (latest release)"
     
     ARCH=$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/')
+    OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+    
     if [ -z "$ARCH" ]; then
         error "Failed to detect architecture"
     fi
@@ -202,7 +204,7 @@ install_dayzctl() {
     rm -f /usr/local/bin/dayzctl || warn "Failed to remove old binary (may not exist)"
     
     # Try local build first
-    LOCAL_BINARY="./build/dayzctl-linux-${ARCH}"
+    LOCAL_BINARY="./build/dayzctl-${OS}-${ARCH}"
     if [ -f "$LOCAL_BINARY" ]; then
         log "found local binary: $LOCAL_BINARY"
         cp "$LOCAL_BINARY" /usr/local/bin/dayzctl || error "Failed to copy local binary"
@@ -217,35 +219,37 @@ install_dayzctl() {
         return 0
     fi
     
-    # Get latest version from GitHub releases page (HTML scraping)
-    log "Fetching latest release from GitHub..."
-    RELEASES_URL="https://github.com/kabroxiko/dayzctl/releases"
+    # Download manifest from latest release
+    log "Downloading manifest from GitHub..."
+    MANIFEST_URL="https://github.com/kabroxiko/dayzctl/releases/latest/download/manifest.json"
     
     if command -v curl >/dev/null 2>&1; then
-        HTML=$(curl -fsSL "$RELEASES_URL" 2>/dev/null || echo "")
+        MANIFEST=$(curl -fsSL "$MANIFEST_URL" 2>/dev/null || echo "")
     elif command -v wget >/dev/null 2>&1; then
-        HTML=$(wget -qO- "$RELEASES_URL" 2>/dev/null || echo "")
+        MANIFEST=$(wget -qO- "$MANIFEST_URL" 2>/dev/null || echo "")
     else
-        error "Neither curl nor wget available to query GitHub releases"
+        error "Neither curl nor wget available"
     fi
     
-    if [ -z "$HTML" ]; then
-        error "Failed to fetch releases page from GitHub"
+    if [ -z "$MANIFEST" ]; then
+        error "Failed to download manifest from $MANIFEST_URL"
     fi
     
-    # Extract the latest version tag (e.g., v1.0.0)
-    LATEST_TAG=$(echo "$HTML" | grep -Eo 'href="/kabroxiko/dayzctl/releases/tag/[^"]+"' | head -1 | sed -E 's/.*tag\/([^"]+).*/\1/')
+    # Parse manifest to get version and asset name
+    VERSION=$(echo "$MANIFEST" | grep -o '"version":"[^"]*"' | head -1 | sed 's/"version":"\([^"]*\)"/\1/')
+    ASSET_KEY="${OS}_${ARCH}"
+    ASSET_NAME=$(echo "$MANIFEST" | grep -o "\"${ASSET_KEY}\":\"[^\"]*\"" | head -1 | sed "s/\"${ASSET_KEY}\":\"\([^\"]*\)\"/\1/")
     
-    if [ -z "$LATEST_TAG" ]; then
-        error "Failed to determine latest version tag"
+    if [ -z "$VERSION" ] || [ -z "$ASSET_NAME" ]; then
+        error "Failed to parse manifest. Version: $VERSION, Asset: $ASSET_NAME"
     fi
     
-    log "Latest version: $LATEST_TAG"
+    log "Latest version: $VERSION"
+    log "Asset: $ASSET_NAME"
     
-    # Construct download URL
-    DL_URL="https://github.com/kabroxiko/dayzctl/releases/download/${LATEST_TAG}/dayzctl-linux-${ARCH}"
-    
-    log "Downloading dayzctl from: $DL_URL"
+    # Download the binary
+    DL_URL="https://github.com/kabroxiko/dayzctl/releases/download/v${VERSION}/${ASSET_NAME}"
+    log "Downloading from: $DL_URL"
     
     if command -v curl >/dev/null 2>&1; then
         if ! curl -fsSL -o /usr/local/bin/dayzctl "$DL_URL"; then
@@ -263,7 +267,7 @@ install_dayzctl() {
         error "dayzctl binary verification failed"
     fi
     
-    log "dayzctl installed successfully: $(/usr/local/bin/dayzctl version)"
+    log "dayzctl v${VERSION} installed successfully: $(/usr/local/bin/dayzctl version)"
 }
 
 # ============================================================================
