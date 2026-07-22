@@ -445,6 +445,9 @@ func addModToInstance(instance *config.Instance, modID string, isServerMod bool)
 	modManager := mods.New(Config.GetInstallDir(), Config.Paths.WorkshopDir)
 
 	logger.Info("Downloading mod", "mod_id", modID)
+	if Config.GetSteamcmdBin() == "" {
+		return fmt.Errorf("steamcmd path not configured; set 'paths.steamcmd_bin' in the config or install SteamCMD via the installer")
+	}
 	steam := steamcmd.New(Config.GetSteamUser(), Config.GetInstallDir(), Config.GetSteamcmdBin())
 	if err := steam.DownloadMod(modID); err != nil {
 		logger.Warn("Failed to download mod", "mod_id", modID, "error", err)

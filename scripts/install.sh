@@ -374,6 +374,12 @@ main() {
     fi
     log "Configuration applied successfully"
     
+    log "Downloading/updating DayZ server (this may take a while)..."
+    if ! runuser -u dayz -- /usr/local/bin/dayzctl update; then
+        error "dayzctl update failed - check the error above"
+    fi
+    log "DayZ server downloaded/updated successfully"
+    
     log ""
     log "=== Installation Complete ==="
     log ""
@@ -389,7 +395,7 @@ main() {
     log "  dayzctl rcon send main status  # Send RCON command"
     log ""
     log "🔑 Steam login (run as dayz user):"
-    log "  sudo -u dayz dayzctl steam-login"
+    log "  sudo -u dayz /usr/local/bin/dayzctl steam-login"
     log ""
     log "📋 View logs:"
     log "  journalctl -u dayz@main -f"
@@ -397,45 +403,5 @@ main() {
     log ""
     log "done."
 }
-
-# ============================================================================
-# Parse command line arguments
-# ============================================================================
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        # --version removed: installer always fetches latest dayzctl
-        # --debug and --trace removed; debug messages are printed as normal
-        --user)
-            STEAM_USER="$2"
-            shift 2
-            ;;
-        --home)
-            DAYZ_HOME="$2"
-            shift 2
-            ;;
-        --reinstall)
-            REINSTALL=1
-            shift
-            ;;
-        --help|-h)
-                log "Usage: $0 [OPTIONS]"
-                log ""
-                log "Options:"
-                log "  (no --version) Installer always fetches latest dayzctl"
-                log "  --user USER        Steam username to use"
-                log "  --home PATH        Installation directory (default: ${DAYZ_HOME})"
-                log "  --reinstall        Force reinstall even if files exist"
-                log "  --help, -h         Show this help"
-                log ""
-                log "Architecture:"
-                log "  dayzctl runs as root (system management)"
-                log "  dayz user runs steamcmd and server processes"
-            exit 0
-            ;;
-        *)
-            error "Unknown option: $1"
-            ;;
-    esac
-done
 
 main "$@"
