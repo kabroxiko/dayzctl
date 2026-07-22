@@ -76,10 +76,10 @@ jobs:
           go mod download
           go build -o /dev/null ./cmd/dayzctl
 
-  # Verify SBOM generation works
   verify-sbom:
     name: Verify SBOM Generation
     runs-on: ubuntu-latest
+    needs: [build]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -99,20 +99,92 @@ jobs:
 
       - name: Verify SBOM manifest
         run: |
-          if [ -f dist/manifest.json ]; then
-            echo "✅ SBOM manifest generated successfully"
-            # Verify it's valid JSON
-            cat dist/manifest.json | jq '.' > /dev/null
-            echo "✅ SBOM manifest is valid JSON"
-            # Check if it contains packages
-            if cat dist/manifest.json | jq -e '.packages | length > 0' > /dev/null; then
-              echo "✅ SBOM contains packages"
-              echo "Package count: $(cat dist/manifest.json | jq '.packages | length')"
-            else
-              echo "❌ SBOM contains no packages"
-              exit 1
-            fi
-          else
+          echo "=== SBOM Verification ==="
+          
+          # Check if manifest exists
+          if [ ! -f dist/manifest.json ]; then
             echo "❌ SBOM manifest not found"
+            exit 1
+          fi
+          echo "✅ SBOM manifest exists"
+          
+          # Verify it's valid JSON
+          if cat dist/manifest.json | jq '.' > /dev/null 2>&1; then
+            echo "✅ SBOM manifest is valid JSON"
+          else
+            echo "❌ SBOM manifest is invalid JSON"
+            exit 1
+          fi
+          
+          # Check for version info
+          VERSION=$(cat dist/manifest.json | jq -r '.versionInfo' 2>/dev/null)
+          if [ -n "$VERSION" ] && [ "$VERSION" != "null" ]; then
+            echo "✅ SBOM contains version: $VERSION"
+          else
+            echo "❌ SBOM missing versionInfo"
+            exit 1
+          fi
+          
+          # Check for packages
+          PACKAGE_COUNT=$(cat dist/manifest.json | jq '.packages | length' 2>/dev/null)
+          if [ -n "$PACKAGE_COUNT" ] && [ "$PACKAGE_COUNT" -gt 0 ]; then
+            echo "✅ SBOM contains $PACKAGE_COUNT packages"
+          else
+            echo "❌ SBOM contains no packages"
+            exit 1
+          fi
+          
+          # Verify each package has checksums
+          echo ""
+          echo "Package details:"
+          cat dist/manifest.json | jq -r '.packages[] | "  \(.name): \(.checksums[0].checksumValue // "NO CHECKSUM")"'
+          
+          # Check if all packages have checksums
+          MISSING_CHECKSUMS=$(cat dist/manifest.json | jq -r '.packages[] | select(.checksums == null or .checksums[0].checksumValue == null) | .name' 2>/dev/null)
+          if [ -n "$MISSING_CHECKSUMS" ]; then
+            echo ""
+            echo "⚠️ Warning: Some packages missing checksums:"
+            echo "$MISSING_CHECKSUMS"
+          else
+            echo ""
+            echo "✅ All packages have checksums"
+          fi
+          
+          echo ""
+          echo "SBOM verification complete ✅"
+
+  release-check:
+    name: Release Check
+    runs-on: ubuntu-latest
+    needs: [test, lint, build, verify-sbom]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - name: Run GoReleaser (dry run)
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          version: '~> v2'
+          args: release --clean --skip-publish --skip-announce --skip-sign
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify final SBOM
+        run: |
+          echo "=== Final SBOM Verification ==="
+          if [ -f dist/manifest.json ]; then
+            echo "✅ Final SBOM manifest exists"
+            echo "Version: $(cat dist/manifest.json | jq -r '.versionInfo')"
+            echo "Packages: $(cat dist/manifest.json | jq -r '.packages | length')"
+          else
+            echo "❌ Final SBOM manifest not found"
             exit 1
           fi
