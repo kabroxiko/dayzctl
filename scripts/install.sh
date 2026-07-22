@@ -219,7 +219,7 @@ install_dayzctl() {
         return 0
     fi
     
-    # Download manifest from latest release
+    # Download manifest.json (SBOM) from latest release
     log "Downloading manifest from GitHub..."
     MANIFEST_URL="https://github.com/kabroxiko/dayzctl/releases/latest/download/manifest.json"
     
@@ -235,32 +235,63 @@ install_dayzctl() {
         error "Failed to download manifest from $MANIFEST_URL"
     fi
     
-    # Parse manifest to get version and asset name
-    VERSION=$(echo "$MANIFEST" | grep -o '"version":"[^"]*"' | head -1 | sed 's/"version":"\([^"]*\)"/\1/')
-    ASSET_KEY="${OS}_${ARCH}"
-    ASSET_NAME=$(echo "$MANIFEST" | grep -o "\"${ASSET_KEY}\":\"[^\"]*\"" | head -1 | sed "s/\"${ASSET_KEY}\":\"\([^\"]*\)\"/\1/")
+    # Extract version from SPDX manifest
+    VERSION=$(echo "$MANIFEST" | grep -o '"versionInfo":"[^"]*"' | head -1 | sed 's/"versionInfo":"\([^"]*\)"/\1/')
     
-    if [ -z "$VERSION" ] || [ -z "$ASSET_NAME" ]; then
-        error "Failed to parse manifest. Version: $VERSION, Asset: $ASSET_NAME"
+    # Find the asset for our OS/ARCH from SPDX packages
+    ASSET_NAME="dayzctl-${OS}-${ARCH}"
+    if [ "$OS" = "windows" ]; then
+        ASSET_NAME="${ASSET_NAME}.exe"
+    fi
+    
+    # Verify the asset exists in the manifest
+    if ! echo "$MANIFEST" | grep -q "\"name\":\"${ASSET_NAME}\""; then
+        error "Asset ${ASSET_NAME} not found in manifest"
+    fi
+    
+    # Get checksum from manifest for verification
+    CHECKSUM=$(echo "$MANIFEST" | grep -A 10 "\"name\":\"${ASSET_NAME}\"" | grep -o '"checksumValue":"[^"]*"' | head -1 | sed 's/"checksumValue":"\([^"]*\)"/\1/')
+    
+    if [ -z "$VERSION" ]; then
+        error "Failed to parse version from manifest"
     fi
     
     log "Latest version: $VERSION"
     log "Asset: $ASSET_NAME"
+    [ -n "$CHECKSUM" ] && log "Expected checksum: $CHECKSUM"
     
     # Download the binary
     DL_URL="https://github.com/kabroxiko/dayzctl/releases/download/v${VERSION}/${ASSET_NAME}"
     log "Downloading from: $DL_URL"
     
+    # Download to temp file for checksum verification
+    TMP_FILE=$(mktemp)
+    
     if command -v curl >/dev/null 2>&1; then
-        if ! curl -fsSL -o /usr/local/bin/dayzctl "$DL_URL"; then
+        if ! curl -fsSL -o "$TMP_FILE" "$DL_URL"; then
+            rm -f "$TMP_FILE"
             error "Failed to download dayzctl binary from $DL_URL"
         fi
     else
-        if ! wget -qO /usr/local/bin/dayzctl "$DL_URL"; then
+        if ! wget -qO "$TMP_FILE" "$DL_URL"; then
+            rm -f "$TMP_FILE"
             error "Failed to download dayzctl binary from $DL_URL"
         fi
     fi
     
+    # Verify checksum if available
+    if [ -n "$CHECKSUM" ]; then
+        log "Verifying checksum..."
+        ACTUAL_CHECKSUM=$(sha256sum "$TMP_FILE" | cut -d' ' -f1)
+        if [ "$ACTUAL_CHECKSUM" != "$CHECKSUM" ]; then
+            rm -f "$TMP_FILE"
+            error "Checksum verification failed. Expected: $CHECKSUM, Got: $ACTUAL_CHECKSUM"
+        fi
+        log "Checksum verified successfully"
+    fi
+    
+    # Move to final location
+    mv "$TMP_FILE" /usr/local/bin/dayzctl || error "Failed to move binary"
     chmod 755 /usr/local/bin/dayzctl || error "Failed to make dayzctl executable"
     
     if ! /usr/local/bin/dayzctl version &>/dev/null; then

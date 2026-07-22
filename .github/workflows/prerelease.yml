@@ -26,7 +26,7 @@ jobs:
           go-version: '1.26'
           cache: true
 
-      - name: Run GoReleaser
+      - name: Run GoReleaser (snapshot)
         uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
@@ -34,6 +34,18 @@ jobs:
           args: release --clean --snapshot
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify SBOM manifest
+        run: |
+          if [ -f dist/manifest.json ]; then
+            echo "✅ SBOM manifest generated successfully"
+            # Add version info for nightly
+            echo "nightly-$(date +%Y%m%d)" > dist/version.txt
+            cat dist/version.txt
+          else
+            echo "❌ SBOM manifest not found"
+            exit 1
+          fi
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
