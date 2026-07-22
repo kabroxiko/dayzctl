@@ -212,34 +212,41 @@ install_dayzctl() {
     else
         # Determine latest release asset via GitHub API
         API_URL="https://api.github.com/repos/kabroxiko/dayzctl/releases/latest"
+        log "Fetching latest release info from GitHub API..."
+        
         if command -v curl >/dev/null 2>&1; then
-            JSON="$(curl -fsSL "$API_URL")" || error "Failed to fetch latest release info from GitHub"
+            JSON=$(curl -fsSL "$API_URL" 2>&1) || {
+                error "Failed to fetch latest release info from GitHub: $JSON"
+            }
         elif command -v wget >/dev/null 2>&1; then
-            JSON="$(wget -qO- "$API_URL")" || error "Failed to fetch latest release info from GitHub"
+            JSON=$(wget -qO- "$API_URL" 2>&1) || {
+                error "Failed to fetch latest release info from GitHub: $JSON"
+            }
         else
             error "Neither curl nor wget available to query GitHub releases"
         fi
 
         # Try to extract browser_download_url for matching asset
-        DL_URL="$(echo "$JSON" | grep -Eo '"browser_download_url":\s*"[^"]+dayzctl-linux-${ARCH}[^"]*"' | sed -E 's/.*"([^"]+)"/\1/' | head -n1)"
-        TAG_NAME="$(echo "$JSON" | grep -Eo '"tag_name":\s*"[^"]+"' | sed -E 's/.*"([^"]+)"/\1/' | head -n1)"
+        DL_URL=$(echo "$JSON" | grep -Eo '"browser_download_url":\s*"[^"]+dayzctl-linux-${ARCH}[^"]*"' | sed -E 's/.*"([^"]+)"/\1/' | head -n1)
+        TAG_NAME=$(echo "$JSON" | grep -Eo '"tag_name":\s*"[^"]+"' | sed -E 's/.*"([^"]+)"/\1/' | head -n1)
 
         if [ -z "$DL_URL" ]; then
             # Fallback to constructing URL with tag name if we have it
             if [ -n "$TAG_NAME" ]; then
                 DL_URL="https://github.com/kabroxiko/dayzctl/releases/download/${TAG_NAME}/dayzctl-linux-${ARCH}"
+                log "No asset found in API, using constructed URL: $DL_URL"
             else
-                error "Failed to determine download URL for latest dayzctl"
+                error "Failed to determine download URL for latest dayzctl (no tag name found)"
             fi
         fi
 
         log "downloading dayzctl from $DL_URL"
         if command -v curl >/dev/null 2>&1; then
-            if ! curl -fsSL -o /usr/local/bin/dayzctl "$DL_URL"; then
+            if ! curl -fsSL -o /usr/local/bin/dayzctl "$DL_URL" 2>&1; then
                 error "Failed to download dayzctl binary from $DL_URL"
             fi
         else
-            if ! wget -qO /usr/local/bin/dayzctl "$DL_URL"; then
+            if ! wget -qO /usr/local/bin/dayzctl "$DL_URL" 2>&1; then
                 error "Failed to download dayzctl binary from $DL_URL"
             fi
         fi
@@ -251,9 +258,9 @@ install_dayzctl() {
         error "dayzctl binary verification failed"
     fi
     
-    log "dayzctl installed successfully: $(/usr/local/bin/dayzctl version)"
+    log "dayzctl installed succes
+    sfully: $(/usr/local/bin/dayzctl version)"
 }
-
 # ============================================================================
 # Install bercon-cli (RCON client)
 # ============================================================================
