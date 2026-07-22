@@ -1,6 +1,8 @@
 package commands
 
 import (
+	"fmt"
+
 	"github.com/kabroxiko/dayzctl/internal/steamcmd"
 	"github.com/spf13/cobra"
 )
