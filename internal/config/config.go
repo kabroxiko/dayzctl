@@ -246,12 +246,9 @@ func (c *ServerConfig) GetWorkshopDir() string {
 	return DefaultBaseDir() + "/workshop"
 }
 
-// GetSteamcmdBin returns the steamcmd binary path with default fallback
+// GetSteamcmdBin returns the configured steamcmd binary path (may be empty).
 func (c *ServerConfig) GetSteamcmdBin() string {
-	if c.Paths.SteamcmdBin != "" {
-		return c.Paths.SteamcmdBin
-	}
-	return DefaultBaseDir() + "/steamcmd/steamcmd.sh"
+	return c.Paths.SteamcmdBin
 }
 
 // GetEnabledInstances returns only enabled instances

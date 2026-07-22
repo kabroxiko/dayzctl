@@ -33,6 +33,9 @@ func UpdateCmd() *cobra.Command {
 				}
 
 				logger.Info("Starting update check...")
+				if Config.GetSteamcmdBin() == "" {
+					return fmt.Errorf("steamcmd path not configured; set 'paths.steamcmd_bin' in the config or install SteamCMD via the installer")
+				}
 				steam := steamcmd.New(Config.GetSteamUser(), Config.GetInstallDir(), Config.GetSteamcmdBin())
 
 				// Check current build ID

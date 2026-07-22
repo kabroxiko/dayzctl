@@ -34,9 +34,6 @@ type SteamCmd struct {
 
 // New creates a new SteamCMD instance
 func New(user, installDir, steamCmdPath string) *SteamCmd {
-	if steamCmdPath == "" {
-		steamCmdPath = filepath.Join(installDir, "steamcmd", "steamcmd.sh")
-	}
 	workshop := filepath.Join(installDir, "workshop")
 	return &SteamCmd{
 		User:         user,
@@ -48,6 +45,9 @@ func New(user, installDir, steamCmdPath string) *SteamCmd {
 
 // runSteamCmd runs a steamcmd command as the dayz user
 func (s *SteamCmd) runSteamCmd(args ...string) error {
+	if s.SteamCmdPath == "" {
+		return fmt.Errorf("steamcmd binary path not configured")
+	}
 	cmdStr := fmt.Sprintf("%s %s", s.SteamCmdPath, strings.Join(args, " "))
 	logger.Debug("Executing steamcmd", "cmd", cmdStr, "user", s.User, "installDir", s.InstallDir)
 	cmd := exec.Command("runuser", "-u", "dayz", "--", "sh", "-c", cmdStr)
@@ -62,6 +62,9 @@ func (s *SteamCmd) runSteamCmd(args ...string) error {
 
 // runSteamCmdWithOutput runs a steamcmd command and returns output
 func (s *SteamCmd) runSteamCmdWithOutput(args ...string) (string, error) {
+	if s.SteamCmdPath == "" {
+		return "", fmt.Errorf("steamcmd binary path not configured")
+	}
 	cmdStr := fmt.Sprintf("%s %s", s.SteamCmdPath, strings.Join(args, " "))
 	logger.Debug("Executing steamcmd (with output)", "cmd", cmdStr, "user", s.User, "installDir", s.InstallDir)
 	cmd := exec.Command("runuser", "-u", "dayz", "--", "sh", "-c", cmdStr)
@@ -301,13 +304,7 @@ func (s *SteamCmd) cacheBuildID(buildID string) {
 	}
 }
 
-// GetSteamcmdBin returns the steamcmd binary path
-func (s *SteamCmd) GetSteamcmdBin() string {
-	if s.SteamCmdPath != "" {
-		return s.SteamCmdPath
-	}
-	return filepath.Join(s.InstallDir, "steamcmd", "steamcmd.sh")
-}
+// (no GetSteamcmdBin present) SteamCmd relies on SteamCmdPath being provided.
 
 // IsRateLimitError checks if an error is a rate limit error
 func IsRateLimitError(err error) bool {
