@@ -217,38 +217,43 @@ install_dayzctl() {
         return 0
     fi
     
-    # Download latest release from GitHub API
-    log "Fetching latest release from GitHub API..."
-    API_URL="https://api.github.com/repos/kabroxiko/dayzctl/releases/latest"
+    # Get latest version from GitHub releases page (HTML scraping)
+    log "Fetching latest release from GitHub..."
+    RELEASES_URL="https://github.com/kabroxiko/dayzctl/releases"
     
     if command -v curl >/dev/null 2>&1; then
-        JSON=$(curl -fsSL "$API_URL" 2>/dev/null || echo "")
+        HTML=$(curl -fsSL "$RELEASES_URL" 2>/dev/null || echo "")
     elif command -v wget >/dev/null 2>&1; then
-        JSON=$(wget -qO- "$API_URL" 2>/dev/null || echo "")
+        HTML=$(wget -qO- "$RELEASES_URL" 2>/dev/null || echo "")
     else
         error "Neither curl nor wget available to query GitHub releases"
     fi
     
-    if [ -z "$JSON" ]; then
-        error "Failed to fetch latest release info from GitHub API"
+    if [ -z "$HTML" ]; then
+        error "Failed to fetch releases page from GitHub"
     fi
     
-    # Extract the download URL for our architecture
-    DL_URL=$(echo "$JSON" | grep -Eo '"browser_download_url":\s*"[^"]*dayzctl-linux-'"${ARCH}"'[^"]*"' | head -1 | sed -E 's/.*"([^"]+)"/\1/')
+    # Extract the latest version tag (e.g., v1.0.0)
+    LATEST_TAG=$(echo "$HTML" | grep -Eo 'href="/kabroxiko/dayzctl/releases/tag/[^"]+"' | head -1 | sed -E 's/.*tag\/([^"]+).*/\1/')
     
-    if [ -z "$DL_URL" ]; then
-        error "No release asset found for architecture: ${ARCH}"
+    if [ -z "$LATEST_TAG" ]; then
+        error "Failed to determine latest version tag"
     fi
+    
+    log "Latest version: $LATEST_TAG"
+    
+    # Construct download URL
+    DL_URL="https://github.com/kabroxiko/dayzctl/releases/download/${LATEST_TAG}/dayzctl-linux-${ARCH}"
     
     log "Downloading dayzctl from: $DL_URL"
     
     if command -v curl >/dev/null 2>&1; then
         if ! curl -fsSL -o /usr/local/bin/dayzctl "$DL_URL"; then
-            error "Failed to download dayzctl binary"
+            error "Failed to download dayzctl binary from $DL_URL"
         fi
     else
         if ! wget -qO /usr/local/bin/dayzctl "$DL_URL"; then
-            error "Failed to download dayzctl binary"
+            error "Failed to download dayzctl binary from $DL_URL"
         fi
     fi
     
