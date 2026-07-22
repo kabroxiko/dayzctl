@@ -12,8 +12,8 @@ on:
         type: string
 
 permissions:
-  contents: write  # Required for creating releases
-  packages: write  # For publishing packages (if needed)
+  contents: write
+  packages: write
 
 jobs:
   goreleaser:
@@ -30,8 +30,14 @@ jobs:
           go-version: '1.26'
           cache: true
 
+      - name: Generate manifest
+        run: |
+          chmod +x scripts/generate-manifest.sh
+          ./scripts/generate-manifest.sh
+          cat manifest.json
+
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v7  # Updated to v7 (uses Node.js 24)
+        uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
           version: '~> v2'
