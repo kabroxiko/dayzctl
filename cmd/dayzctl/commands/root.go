@@ -24,7 +24,7 @@ func init() {
 		Long:  fmt.Sprintf("DayZ server management tool\nVersion: %s\nBuild: %s", version.Version, version.BuildTime),
 	}
 
-	rootCmd.PersistentFlags().StringVarP(&configPath, "config", "c", "/srv/dayz/config/server.yaml", "Config file path")
+	rootCmd.PersistentFlags().StringVarP(&configPath, "config", "c", config.DefaultConfigPath(), "Config file path")
 	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "info", "Log level (debug, info, warn, error)")
 
 	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {

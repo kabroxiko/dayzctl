@@ -35,13 +35,14 @@ type SteamCmd struct {
 // New creates a new SteamCMD instance
 func New(user, installDir, steamCmdPath string) *SteamCmd {
 	if steamCmdPath == "" {
-		steamCmdPath = "/srv/dayz/steamcmd/steamcmd.sh"
+		steamCmdPath = filepath.Join(installDir, "steamcmd", "steamcmd.sh")
 	}
+	workshop := filepath.Join(installDir, "workshop")
 	return &SteamCmd{
 		User:         user,
 		InstallDir:   installDir,
 		SteamCmdPath: steamCmdPath,
-		WorkshopDir:  "/srv/dayz/workshop",
+		WorkshopDir:  workshop,
 	}
 }
 
@@ -305,7 +306,7 @@ func (s *SteamCmd) GetSteamcmdBin() string {
 	if s.SteamCmdPath != "" {
 		return s.SteamCmdPath
 	}
-	return "/srv/dayz/steamcmd/steamcmd.sh"
+	return filepath.Join(s.InstallDir, "steamcmd", "steamcmd.sh")
 }
 
 // IsRateLimitError checks if an error is a rate limit error

@@ -423,7 +423,7 @@ while [[ $# -gt 0 ]]; do
                 log "Options:"
                 log "  (no --version) Installer always fetches latest dayzctl"
                 log "  --user USER        Steam username to use"
-                log "  --home PATH        Installation directory (default: /srv/dayz)"
+                log "  --home PATH        Installation directory (default: ${DAYZ_HOME})"
                 log "  --reinstall        Force reinstall even if files exist"
                 log "  --help, -h         Show this help"
                 log ""

@@ -7,6 +7,19 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// DefaultBaseDir is the default installation base directory
+func DefaultBaseDir() string {
+	if v := os.Getenv("DAYZ_HOME"); v != "" {
+		return v
+	}
+	return "/srv/dayz"
+}
+
+// DefaultConfigPath returns the default path to the config file
+func DefaultConfigPath() string {
+	return DefaultBaseDir() + "/config/server.yaml"
+}
+
 // ============================================================================
 // CONFIGURATION STRUCTURES
 // ============================================================================
@@ -214,7 +227,7 @@ func (c *ServerConfig) GetInstallDir() string {
 	if c.Paths.InstallDir != "" {
 		return c.Paths.InstallDir
 	}
-	return "/srv/dayz/server"
+	return DefaultBaseDir() + "/server"
 }
 
 // GetBackupDir returns the backup directory with default fallback
@@ -222,7 +235,7 @@ func (c *ServerConfig) GetBackupDir() string {
 	if c.Paths.BackupsDir != "" {
 		return c.Paths.BackupsDir
 	}
-	return "/srv/dayz/backups"
+	return DefaultBaseDir() + "/backups"
 }
 
 // GetWorkshopDir returns the workshop directory with default fallback
@@ -230,7 +243,7 @@ func (c *ServerConfig) GetWorkshopDir() string {
 	if c.Paths.WorkshopDir != "" {
 		return c.Paths.WorkshopDir
 	}
-	return "/srv/dayz/workshop"
+	return DefaultBaseDir() + "/workshop"
 }
 
 // GetSteamcmdBin returns the steamcmd binary path with default fallback
@@ -238,7 +251,7 @@ func (c *ServerConfig) GetSteamcmdBin() string {
 	if c.Paths.SteamcmdBin != "" {
 		return c.Paths.SteamcmdBin
 	}
-	return "/srv/dayz/steamcmd/steamcmd.sh"
+	return DefaultBaseDir() + "/steamcmd/steamcmd.sh"
 }
 
 // GetEnabledInstances returns only enabled instances
