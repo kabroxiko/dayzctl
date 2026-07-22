@@ -13,7 +13,7 @@
 #                                          (non-interactive / scripts).
 #
 # Overridable variables (use the same as during installation):
-#   DAYZ_HOME  (default /srv/dayz)
+#   DAYZ_HOME  (default /srv/dayz or set via environment)
 #   DAYZ_USER  (default dayz)
 #
 set -euo pipefail

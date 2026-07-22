@@ -43,7 +43,12 @@ func SaveConfig() error {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
 
-	configPath := "/srv/dayz/config/server.yaml"
+	configPath := config.DefaultConfigPath()
+	// prefer config override if present
+	if Config.Paths.InstallDir != "" {
+		configPath = Config.Paths.InstallDir + "/config/server.yaml"
+	}
+
 	if err := os.WriteFile(configPath, data, 0644); err != nil {
 		return fmt.Errorf("failed to write config: %w", err)
 	}
