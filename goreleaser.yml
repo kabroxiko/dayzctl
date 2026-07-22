@@ -28,10 +28,13 @@ builds:
       - -X github.com/kabroxiko/dayzctl/internal/version.Version={{.Version}}
       - -X github.com/kabroxiko/dayzctl/internal/version.BuildTime={{.Date}}
 
-# SBOM generation - minimal config without format
-sboms:
-  - id: manifest
-    artifacts: binary
+archives:
+  - id: binary
+    formats: [tar.gz]
+    name_template: "{{ .Binary }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - src: "{{ .Path }}"
+        dst: "{{ .Binary }}"
 
 release:
   github:
@@ -41,11 +44,8 @@ release:
   prerelease: auto
   mode: replace
   name_template: "{{.ProjectName}} {{.Version}}"
-
-archives:
-  - id: binary
-    formats: [binary]
-    name_template: "{{ .Binary }}-{{ .Os }}-{{ .Arch }}"
+  extra_files:
+    - glob: manifest.json
 
 checksum:
   name_template: "checksums.txt"
