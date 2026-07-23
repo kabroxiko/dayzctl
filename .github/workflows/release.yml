@@ -30,24 +30,6 @@ jobs:
           go-version: '1.26'
           cache: true
 
-      - name: Generate manifest
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
-          if [ -z "$VERSION" ] || [ "$VERSION" = "refs/tags/v" ]; then
-            VERSION="${{ github.event.inputs.version }}"
-          fi
-          if [ -z "$VERSION" ]; then
-            echo "ERROR: No version found"
-            exit 1
-          fi
-          cat > manifest.json << EOF
-          {
-            "version": "${VERSION}"
-          }
-          EOF
-          echo "Generated manifest.json with version ${VERSION}"
-          cat manifest.json
-
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v7
         with:

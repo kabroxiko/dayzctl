@@ -44,8 +44,6 @@ release:
   prerelease: auto
   mode: replace
   name_template: "{{.ProjectName}} {{.Version}}"
-  extra_files:
-    - glob: manifest.json
 
 checksum:
   name_template: "checksums.txt"
