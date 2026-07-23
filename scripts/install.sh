@@ -207,15 +207,10 @@ install_dayzctl() {
 
     log "Fetching latest version from GitHub redirect..."
 
-    # Let curl errors print directly to stderr
-    REDIRECT_URL=$(curl -fsSL -o /dev/null -w "%{url_effective}" "https://github.com/kabroxiko/dayzctl/releases/latest") || {
-        error "Failed to follow redirect to latest release"
+    # Use --fail to return error on HTTP errors, -L to follow redirects
+    REDIRECT_URL=$(curl --fail -L -s -o /dev/null -w "%{url_effective}" "https://github.com/kabroxiko/dayzctl/releases/latest") || {
+        error "Failed to fetch latest release from GitHub"
     }
-    
-    
-    
-    
-    
 
     if [ -z "$REDIRECT_URL" ]; then
         error "Empty redirect URL from GitHub"
@@ -237,7 +232,7 @@ install_dayzctl() {
     log "Asset: $ASSET"
 
     log "Downloading checksums..."
-    CHECKSUMS=$(curl -fsSL "$CHECKSUM_URL") || {
+    CHECKSUMS=$(curl --fail -L -s "$CHECKSUM_URL") || {
         error "Failed to download checksums from $CHECKSUM_URL"
     }
 
@@ -257,7 +252,7 @@ install_dayzctl() {
     TMP_FILE="${TMP_DIR}/${ASSET}"
 
     log "Downloading binary from $DL_URL..."
-    curl -fsSL -o "$TMP_FILE" "$DL_URL" || {
+    curl --fail -L -o "$TMP_FILE" "$DL_URL" || {
         rm -rf "$TMP_DIR"
         error "Failed to download ${ASSET} from $DL_URL"
     }
