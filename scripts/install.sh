@@ -183,14 +183,14 @@ install_steamcmd() {
 # ============================================================================
 install_dayzctl() {
     log "installing dayzctl binary (latest release)"
-    
+
     ARCH=$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/')
     OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-    
+
     log "Detected architecture: $ARCH, OS: $OS"
-    
+
     rm -f /usr/local/bin/dayzctl
-    
+
     LOCAL_BINARY="./build/dayzctl-${OS}-${ARCH}"
     if [ -f "$LOCAL_BINARY" ]; then
         log "found local binary: $LOCAL_BINARY"
@@ -205,90 +205,112 @@ install_dayzctl() {
         log "dayzctl installed successfully from local build"
         return 0
     fi
-    
+
     log "Fetching latest release from GitHub API..."
     RELEASE_URL="https://api.github.com/repos/kabroxiko/dayzctl/releases/latest"
-    RELEASE_JSON=$(curl -fsSL "$RELEASE_URL" 2>&1)
+    
+    # Use a temporary file to capture both output and exit code
+    TMP_RESPONSE=$(mktemp)
+    HTTP_CODE=$(curl -fsSL -w "%{http_code}" -o "$TMP_RESPONSE" "$RELEASE_URL" 2>/dev/null || echo "000")
+    
+    if [ "$HTTP_CODE" != "200" ]; then
+        rm -f "$TMP_RESPONSE"
+        error "GitHub API returned HTTP $HTTP_CODE. Check network connectivity and repository access."
+    fi
+    
+    RELEASE_JSON=$(cat "$TMP_RESPONSE")
+    rm -f "$TMP_RESPONSE"
     
     if [ -z "$RELEASE_JSON" ]; then
-        error "Failed to get latest release from GitHub API. Response: $RELEASE_JSON"
+        error "Empty response from GitHub API"
     fi
-    
+
     log "Parsing release information..."
     VERSION=$(echo "$RELEASE_JSON" | grep -o '"tag_name":"v[^"]*"' | sed 's/"tag_name":"v\([^"]*\)"/\1/')
-    
+
     if [ -z "$VERSION" ]; then
-        error "Failed to extract version from release. Response: $RELEASE_JSON"
+        error "Failed to extract version from release. API response: $RELEASE_JSON"
     fi
-    
+
     ASSET="dayzctl_${VERSION}_${OS}_${ARCH}.tar.gz"
     DL_URL="https://github.com/kabroxiko/dayzctl/releases/download/v${VERSION}/${ASSET}"
     CHECKSUM_URL="https://github.com/kabroxiko/dayzctl/releases/download/v${VERSION}/checksums.txt"
-    
+
     log "Installing dayzctl v${VERSION}"
     log "Asset: $ASSET"
     log "Download URL: $DL_URL"
-    
+
     log "Downloading checksums..."
-    CHECKSUMS=$(curl -fsSL "$CHECKSUM_URL" 2>&1)
+    TMP_CHECKSUMS=$(mktemp)
+    HTTP_CODE=$(curl -fsSL -w "%{http_code}" -o "$TMP_CHECKSUMS" "$CHECKSUM_URL" 2>/dev/null || echo "000")
     
+    if [ "$HTTP_CODE" != "200" ]; then
+        rm -f "$TMP_CHECKSUMS"
+        error "Failed to download checksums (HTTP $HTTP_CODE) from $CHECKSUM_URL"
+    fi
+    
+    CHECKSUMS=$(cat "$TMP_CHECKSUMS")
+    rm -f "$TMP_CHECKSUMS"
+
     if [ -z "$CHECKSUMS" ]; then
-        error "Failed to download checksums from $CHECKSUM_URL. Response: $CHECKSUMS"
+        error "Empty checksums file from $CHECKSUM_URL"
     fi
-    
+
     EXPECTED_CHECKSUM=$(echo "$CHECKSUMS" | grep " ${ASSET}$" | awk '{print $1}')
-    
+
     if [ -z "$EXPECTED_CHECKSUM" ]; then
-        error "Checksum not found for ${ASSET} in checksums file"
+        error "Checksum not found for ${ASSET} in checksums file. Available: $CHECKSUMS"
     fi
-    
+
     log "Expected checksum: $EXPECTED_CHECKSUM"
-    
+
     TMP_DIR=$(mktemp -d)
     TMP_FILE="${TMP_DIR}/${ASSET}"
-    
+
     log "Downloading binary from $DL_URL..."
-    if ! curl -fsSL -o "$TMP_FILE" "$DL_URL" 2>&1; then
-        rm -rf "$TMP_DIR"
-        error "Failed to download ${ASSET} from $DL_URL"
-    fi
+    HTTP_CODE=$(curl -fsSL -w "%{http_code}" -o "$TMP_FILE" "$DL_URL" 2>/dev/null || echo "000")
     
+    if [ "$HTTP_CODE" != "200" ]; then
+        rm -rf "$TMP_DIR"
+        error "Failed to download ${ASSET} (HTTP $HTTP_CODE) from $DL_URL"
+    fi
+
     if [ ! -f "$TMP_FILE" ]; then
         rm -rf "$TMP_DIR"
         error "Downloaded file not found: $TMP_FILE"
     fi
-    
+
     ACTUAL_CHECKSUM=$(sha256sum "$TMP_FILE" | awk '{print $1}')
     log "Actual checksum: $ACTUAL_CHECKSUM"
-    
+
     if [ "$ACTUAL_CHECKSUM" != "$EXPECTED_CHECKSUM" ]; then
         rm -rf "$TMP_DIR"
         error "Checksum verification failed. Expected: $EXPECTED_CHECKSUM, Got: $ACTUAL_CHECKSUM"
     fi
-    
+
     log "Checksum verified successfully"
-    
+
     log "Extracting archive..."
     if ! tar -xzf "$TMP_FILE" -C "$TMP_DIR" 2>&1; then
         rm -rf "$TMP_DIR"
         error "Failed to extract archive"
     fi
-    
+
     if [ ! -f "${TMP_DIR}/dayzctl" ]; then
         rm -rf "$TMP_DIR"
         error "Binary not found in archive"
     fi
-    
+
     mv "${TMP_DIR}/dayzctl" /usr/local/bin/dayzctl
     chmod 755 /usr/local/bin/dayzctl
-    
+
     rm -rf "$TMP_DIR"
-    
+
     log "Verifying installation..."
     if ! /usr/local/bin/dayzctl version > /dev/null 2>&1; then
         error "dayzctl verification failed"
     fi
-    
+
     log "dayzctl v${VERSION} installed successfully: $(/usr/local/bin/dayzctl version)"
 }
 
