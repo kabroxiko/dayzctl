@@ -207,18 +207,17 @@ install_dayzctl() {
 
     log "Fetching latest version from GitHub redirect..."
 
-    # Use --fail to return error on HTTP errors, -L to follow redirects
-    REDIRECT_URL=$(curl --fail -L -s -o /dev/null -w "%{url_effective}" "https://github.com/kabroxiko/dayzctl/releases/latest") || {
-        error "Failed to fetch latest release from GitHub"
-    }
+    # Temporarily disable set -e for this command
+    set +e
+    REDIRECT_URL=$(curl --fail -L -s -o /dev/null -w "%{url_effective}" "https://github.com/kabroxiko/dayzctl/releases/latest" 2>&1)
+    CURL_EXIT=$?
+    set -e
 
-
+    if [ $CURL_EXIT -ne 0 ]; then
+        error "Failed to fetch latest release from GitHub (exit code: $CURL_EXIT): $REDIRECT_URL"
+    fi
 
     if [ -z "$REDIRECT_URL" ]; then
-    
-    
-    
-    
         error "Empty redirect URL from GitHub"
     fi
 
@@ -238,9 +237,14 @@ install_dayzctl() {
     log "Asset: $ASSET"
 
     log "Downloading checksums..."
-    CHECKSUMS=$(curl --fail -L -s "$CHECKSUM_URL") || {
-        error "Failed to download checksums from $CHECKSUM_URL"
-    }
+    set +e
+    CHECKSUMS=$(curl --fail -L -s "$CHECKSUM_URL" 2>&1)
+    CURL_EXIT=$?
+    set -e
+
+    if [ $CURL_EXIT -ne 0 ]; then
+        error "Failed to download checksums from $CHECKSUM_URL (exit code: $CURL_EXIT): $CHECKSUMS"
+    fi
 
     if [ -z "$CHECKSUMS" ]; then
         error "Empty checksums file from $CHECKSUM_URL"
@@ -258,10 +262,15 @@ install_dayzctl() {
     TMP_FILE="${TMP_DIR}/${ASSET}"
 
     log "Downloading binary from $DL_URL..."
-    curl --fail -L -o "$TMP_FILE" "$DL_URL" || {
+    set +e
+    curl --fail -L -o "$TMP_FILE" "$DL_URL" 2>&1
+    CURL_EXIT=$?
+    set -e
+
+    if [ $CURL_EXIT -ne 0 ]; then
         rm -rf "$TMP_DIR"
-        error "Failed to download ${ASSET} from $DL_URL"
-    }
+        error "Failed to download ${ASSET} from $DL_URL (exit code: $CURL_EXIT)"
+    fi
 
     if [ ! -f "$TMP_FILE" ]; then
         rm -rf "$TMP_DIR"
@@ -279,10 +288,15 @@ install_dayzctl() {
     log "Checksum verified successfully"
 
     log "Extracting archive..."
-    tar -xzf "$TMP_FILE" -C "$TMP_DIR" || {
+    set +e
+    tar -xzf "$TMP_FILE" -C "$TMP_DIR" 2>&1
+    TAR_EXIT=$?
+    set -e
+
+    if [ $TAR_EXIT -ne 0 ]; then
         rm -rf "$TMP_DIR"
-        error "Failed to extract archive"
-    }
+        error "Failed to extract archive (exit code: $TAR_EXIT)"
+    fi
 
     if [ ! -f "${TMP_DIR}/dayzctl" ]; then
         rm -rf "$TMP_DIR"
