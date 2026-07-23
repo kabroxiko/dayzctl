@@ -188,12 +188,6 @@ install_steamcmd() {
         || error "SteamCMD installation test failed"
 }
 
-
-
-
-
-
-
 # ============================================================================
 # Install dayzctl binary (runs as root only)
 # ============================================================================
@@ -269,48 +263,6 @@ install_dayzctl() {
 }
 
 # ============================================================================
-# Install bercon-cli (RCON client)
-# ============================================================================
-install_bercon_cli() {
-    log "installing bercon-cli"
-    
-    ARCH=$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/')
-    if [ -z "$ARCH" ]; then
-        warn "Failed to detect architecture, skipping bercon-cli install"
-        return 0
-    fi
-    
-    OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-    if [ "$OS" != "linux" ]; then
-        warn "bercon-cli only available for Linux, skipping"
-        return 0
-    fi
-    
-    # Try latest release first
-    BINARY_URL="https://github.com/WoozyMasta/bercon-cli/releases/latest/download/bercon-cli-${OS}-${ARCH}"
-    log "downloading bercon-cli from $BINARY_URL"
-    
-    if ! curl -fsSL -o /usr/bin/bercon-cli "$BINARY_URL"; then
-        # Fallback to specific version
-        warn "Failed to download latest, trying v0.4.4..."
-        BINARY_URL="https://github.com/WoozyMasta/bercon-cli/releases/download/v0.4.4/bercon-cli-${OS}-${ARCH}"
-        if ! curl -fsSL -o /usr/bin/bercon-cli "$BINARY_URL"; then
-            warn "Failed to download bercon-cli, RCON will not be available"
-            return 1
-        fi
-    fi
-    
-    chmod 755 /usr/bin/bercon-cli || warn "Failed to make bercon-cli executable"
-    
-    # Verify bercon-cli works
-    if /usr/bin/bercon-cli -v &>/dev/null; then
-        log "bercon-cli installed successfully: $(/usr/bin/bercon-cli -v 2>&1 | head -1)"
-    else
-        warn "bercon-cli installed but verification failed"
-    fi
-}
-
-# ============================================================================
 # Create default server.yaml config (always download template)
 # ============================================================================
 create_config() {
@@ -321,25 +273,59 @@ create_config() {
 
     log "creating default config"
 
-    log "Downloading default template"
-    TMP_TEMPLATE="$(mktemp /tmp/server.yaml.tmpl.XXXXXX)" || error "Failed to create temp file for template"
+    # Try multiple template URLs
+    TEMPLATE_URLS=(
+        "https://raw.githubusercontent.com/kabroxiko/dayzctl/main/scripts/server.yaml.tmpl"
+        "https://raw.githubusercontent.com/kabroxiko/dayzops/main/scripts/server.yaml.tmpl"
+    )
 
-    if command -v curl >/dev/null 2>&1; then
-        if ! curl -fsSL "$DEFAULT_TEMPLATE_URL" -o "$TMP_TEMPLATE"; then
-            rm -f "$TMP_TEMPLATE"
-            error "Failed to download template"
+    TMP_TEMPLATE=""
+    for url in "${TEMPLATE_URLS[@]}"; do
+        log "Trying template URL: $url"
+        TMP_TEMPLATE=$(mktemp /tmp/server.yaml.tmpl.XXXXXX 2>/dev/null || echo "")
+        
+        if [ -z "$TMP_TEMPLATE" ]; then
+            log "Failed to create temp file, trying with mktemp without suffix..."
+            TMP_TEMPLATE=$(mktemp)
         fi
-    elif command -v wget >/dev/null 2>&1; then
-        if ! wget -qO "$TMP_TEMPLATE" "$DEFAULT_TEMPLATE_URL"; then
-            rm -f "$TMP_TEMPLATE"
-            error "Failed to download template"
+        
+        if [ -z "$TMP_TEMPLATE" ]; then
+            error "Failed to create temporary file"
         fi
-    else
-        rm -f "$TMP_TEMPLATE"
-        error "Neither curl nor wget available to download template"
+
+        if command -v curl >/dev/null 2>&1; then
+            log "Using curl to download template..."
+            if curl -fsSL "$url" -o "$TMP_TEMPLATE" 2>/tmp/curl_error.log; then
+                log "Template downloaded successfully from $url"
+                break
+            else
+                log "Failed to download from $url (curl error: $(cat /tmp/curl_error.log 2>/dev/null || echo 'unknown'))"
+                rm -f "$TMP_TEMPLATE"
+                TMP_TEMPLATE=""
+            fi
+        elif command -v wget >/dev/null 2>&1; then
+            log "Using wget to download template..."
+            if wget -qO "$TMP_TEMPLATE" "$url" 2>/tmp/wget_error.log; then
+                log "Template downloaded successfully from $url"
+                break
+            else
+                log "Failed to download from $url (wget error: $(cat /tmp/wget_error.log 2>/dev/null || echo 'unknown'))"
+                rm -f "$TMP_TEMPLATE"
+                TMP_TEMPLATE=""
+            fi
+        else
+            error "Neither curl nor wget available to download template"
+        fi
+    done
+
+    if [ -z "$TMP_TEMPLATE" ] || [ ! -f "$TMP_TEMPLATE" ]; then
+        error "Failed to download template from all sources. Please check network connectivity and URLs."
     fi
 
-    debug_log "Downloaded template to $TMP_TEMPLATE"
+    log "Template downloaded successfully, rendering config..."
+    debug_log "Template file: $TMP_TEMPLATE"
+    debug_log "DAYZ_HOME: $DAYZ_HOME"
+    debug_log "STEAM_USER: $STEAM_USER"
 
     sed "s|%%DAYZ_HOME%%|$DAYZ_HOME|g; s|%%STEAM_USER%%|$STEAM_USER|g" "$TMP_TEMPLATE" > "$DAYZ_HOME/config/server.yaml" || {
         rm -f "$TMP_TEMPLATE"
@@ -350,6 +336,10 @@ create_config() {
 
     chown -R dayz:dayz "$DAYZ_HOME/config" || error "Failed to set ownership on config"
     log "config created at $DAYZ_HOME/config/server.yaml"
+    
+    # Display config content for debugging
+    debug_log "Config content:"
+    debug_log "$(cat $DAYZ_HOME/config/server.yaml 2>/dev/null | head -20 || echo 'Unable to read config')"
 }
 
 # ============================================================================
@@ -378,7 +368,6 @@ main() {
     install_deps
     install_steamcmd
     install_dayzctl
-    install_bercon_cli
     create_config
     set_ownership
     
