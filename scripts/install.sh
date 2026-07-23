@@ -209,13 +209,22 @@ install_dayzctl() {
     REDIRECT_URL=$(curl -fsSL -o /dev/null -w "%{url_effective}" "https://github.com/kabroxiko/dayzctl/releases/latest") || {
         error "Failed to follow redirect to latest release"
     }
+
     log "Redirect URL: $REDIRECT_URL"
 
     if [ -z "$REDIRECT_URL" ]; then
         error "Empty redirect URL from GitHub"
     fi
 
-    VERSION=$(echo "$REDIRECT_URL" | grep -o 'v[0-9.]*$' | sed 's/^v//')
+    # Check if the redirect URL contains a version tag
+    if echo "$REDIRECT_URL" | grep -q '/tag/v[0-9.]*$'; then
+        VERSION=$(echo "$REDIRECT_URL" | grep -o 'v[0-9.]*$' | sed 's/^v//')
+    else
+        # No release exists - this is the first release
+        log "No existing releases found. This appears to be the first release."
+        log "Please create a release manually or use a local build."
+        error "No releases available. Create a release on GitHub or use a local build."
+    fi
 
     if [ -z "$VERSION" ]; then
         error "Failed to extract version from redirect URL: $REDIRECT_URL"
@@ -227,7 +236,6 @@ install_dayzctl() {
 
     log "Installing dayzctl v${VERSION}"
     log "Asset: $ASSET"
-    log "Download URL: $DL_URL"
 
     log "Downloading checksums..."
     CHECKSUMS=$(curl -fsSL "$CHECKSUM_URL" 2>/dev/null) || {
