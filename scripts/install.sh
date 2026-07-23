@@ -227,6 +227,10 @@ install_dayzctl() {
         VERSION=$(echo "$REDIRECT_URL" | grep -o 'v[0-9.]*$' | sed 's/^v//')
         log "Extracted version: $VERSION"
     else
+    
+    
+    
+    
         # No release exists - this is the first release
         log "ERROR: No version tag found in redirect URL: $REDIRECT_URL"
         log "This means there are no releases on the GitHub repository."
