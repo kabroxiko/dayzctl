@@ -304,6 +304,8 @@ create_config() {
 
 
 
+
+
     log "creating default config at $CONFIG_PATH"
 
     # Create /etc/dayzctl directory
