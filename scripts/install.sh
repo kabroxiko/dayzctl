@@ -119,6 +119,76 @@ create_user() {
 }
 
 # ============================================================================
+# Install system dependencies (only what's needed)
+# ============================================================================
+install_deps() {
+    log "enabling i386 architecture and installing dependencies ($DISTRO_FAMILY)"
+    
+    case "$DISTRO_FAMILY" in
+        apt|debian)
+            dpkg --add-architecture i386 || error "Failed to add i386 architecture"
+            apt-get update -qq || error "Failed to update package lists"
+            apt-get install -y -qq \
+                curl \
+                tar \
+                gzip \
+                rsync \
+                ca-certificates \
+                lib32gcc-s1 \
+                util-linux || error "Failed to install dependencies"
+            ;;
+        yum|fedora|rhel|centos)
+            yum install -y -q \
+                curl \
+                tar \
+                gzip \
+                rsync \
+                ca-certificates \
+                glibc.i686 \
+                util-linux || error "Failed to install dependencies"
+            ;;
+        apk|alpine)
+            apk add --no-cache \
+                curl \
+                tar \
+                gzip \
+                rsync \
+                ca-certificates \
+                libgcc \
+                util-linux || error "Failed to install dependencies"
+            ;;
+        *)
+            error "Unsupported package manager: $DISTRO_FAMILY"
+            ;;
+    esac
+}
+
+# ============================================================================
+# Install SteamCMD (runs as dayz user)
+# ============================================================================
+install_steamcmd() {
+    log "installing SteamCMD in $DAYZ_HOME/steamcmd"
+    
+    if [ -f "$DAYZ_HOME/steamcmd/steamcmd.sh" ] && [ "$REINSTALL" != "1" ]; then
+        log "SteamCMD already installed"
+        return 0
+    fi
+    
+    mkdir -p "$DAYZ_HOME/steamcmd" || error "Failed to create steamcmd directory"
+    chown dayz:dayz "$DAYZ_HOME/steamcmd" || error "Failed to set ownership on steamcmd directory"
+
+    cd "$DAYZ_HOME/steamcmd" || error "Failed to cd to steamcmd directory"
+
+    debug_log "running as dayz: curl -sSL https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz | tar -xz"
+    runuser -u dayz -- sh -c "curl -sSL https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz | tar -xz" \
+        || error "Failed to download/extract SteamCMD"
+
+    debug_log "running as dayz: $DAYZ_HOME/steamcmd/steamcmd.sh +quit"
+    runuser -u dayz -- "$DAYZ_HOME/steamcmd/steamcmd.sh" +quit \
+        || error "SteamCMD installation test failed"
+}
+
+# ============================================================================
 # Install dayzctl binary (runs as root only)
 # ============================================================================
 install_dayzctl() {
@@ -185,103 +255,6 @@ install_dayzctl() {
     rm -rf "$TMP_DIR"
     
     # Verify installation
-    if ! /usr/local/bin/dayzctl version > /dev/null 2>&1; then
-        error "dayzctl verification failed"
-    fi
-    
-    log "dayzctl v${VERSION} installed successfully"
-}
-
-# ============================================================================
-# Install SteamCMD (runs as dayz user)
-# ============================================================================
-install_steamcmd() {
-    log "installing SteamCMD in $DAYZ_HOME/steamcmd"
-    
-    if [ -f "$DAYZ_HOME/steamcmd/steamcmd.sh" ] && [ "$REINSTALL" != "1" ]; then
-        log "SteamCMD already installed"
-        return 0
-    fi
-    
-    mkdir -p "$DAYZ_HOME/steamcmd" || error "Failed to create steamcmd directory"
-    chown dayz:dayz "$DAYZ_HOME/steamcmd" || error "Failed to set ownership on steamcmd directory"
-
-    cd "$DAYZ_HOME/steamcmd" || error "Failed to cd to steamcmd directory"
-
-    debug_log "running as dayz: curl -sSL https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz | tar -xz"
-    runuser -u dayz -- sh -c "curl -sSL https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz | tar -xz" \
-        || error "Failed to download/extract SteamCMD"
-
-    debug_log "running as dayz: $DAYZ_HOME/steamcmd/steamcmd.sh +quit"
-    runuser -u dayz -- "$DAYZ_HOME/steamcmd/steamcmd.sh" +quit \
-        || error "SteamCMD installation test failed"
-}
-
-# ============================================================================
-# Install dayzctl binary (runs as root only)
-# ============================================================================
-install_dayzctl() {
-    log "installing dayzctl binary (latest release)"
-    
-    ARCH=$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/')
-    OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-    
-    # Download manifest
-    MANIFEST_URL="https://github.com/kabroxiko/dayzctl/releases/latest/download/manifest.json"
-    MANIFEST=$(curl -fsSL "$MANIFEST_URL")
-    
-    if [ -z "$MANIFEST" ]; then
-        error "Failed to download manifest.json"
-    fi
-    
-    VERSION=$(echo "$MANIFEST" | grep -o '"version":"[^"]*"' | sed 's/"version":"\([^"]*\)"/\1/')
-    
-    if [ -z "$VERSION" ]; then
-        error "Failed to extract version from manifest"
-    fi
-    
-    ASSET="dayzctl_${VERSION}_${OS}_${ARCH}.tar.gz"
-    DL_URL="https://github.com/kabroxiko/dayzctl/releases/download/v${VERSION}/${ASSET}"
-    CHECKSUM_URL="https://github.com/kabroxiko/dayzctl/releases/download/v${VERSION}/checksums.txt"
-    
-    log "Installing dayzctl v${VERSION}"
-    log "Downloading ${ASSET}..."
-    
-    CHECKSUMS=$(curl -fsSL "$CHECKSUM_URL")
-    
-    if [ -z "$CHECKSUMS" ]; then
-        error "Failed to download checksums"
-    fi
-    
-    EXPECTED_CHECKSUM=$(echo "$CHECKSUMS" | grep " ${ASSET}$" | awk '{print $1}')
-    
-    if [ -z "$EXPECTED_CHECKSUM" ]; then
-        error "Checksum not found for ${ASSET}"
-    fi
-    
-    TMP_DIR=$(mktemp -d)
-    TMP_FILE="${TMP_DIR}/${ASSET}"
-    
-    curl -fsSL -o "$TMP_FILE" "$DL_URL"
-    
-    if [ ! -f "$TMP_FILE" ]; then
-        rm -rf "$TMP_DIR"
-        error "Failed to download ${ASSET}"
-    fi
-    
-    ACTUAL_CHECKSUM=$(sha256sum "$TMP_FILE" | awk '{print $1}')
-    
-    if [ "$ACTUAL_CHECKSUM" != "$EXPECTED_CHECKSUM" ]; then
-        rm -rf "$TMP_DIR"
-        error "Checksum verification failed"
-    fi
-    
-    tar -xzf "$TMP_FILE" -C "$TMP_DIR"
-    mv "${TMP_DIR}/dayzctl" /usr/local/bin/dayzctl
-    chmod 755 /usr/local/bin/dayzctl
-    
-    rm -rf "$TMP_DIR"
-    
     if ! /usr/local/bin/dayzctl version > /dev/null 2>&1; then
         error "dayzctl verification failed"
     fi
