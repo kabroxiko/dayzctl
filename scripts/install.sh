@@ -88,7 +88,6 @@ detect_distro() {
 create_structure() {
     log "creating structure in $DAYZ_HOME"
     mkdir -p "$DAYZ_HOME" \
-             "$DAYZ_HOME/config" \
              "$DAYZ_HOME/server" \
              "$DAYZ_HOME/backups" \
              "$DAYZ_HOME/workshop" \
@@ -206,23 +205,19 @@ install_dayzctl() {
         return 0
     fi
 
-    log "Fetching latest release from GitHub API..."
-    RELEASE_URL="https://api.github.com/repos/kabroxiko/dayzctl/releases/latest"
-    
-    # Capture both stdout and stderr, but don't let pipefail cause exit
-    RELEASE_JSON=$(curl -fsSL "$RELEASE_URL" 2>/dev/null) || {
-        error "Failed to connect to GitHub API. Check network connectivity."
+    log "Fetching latest version from GitHub redirect..."
+    REDIRECT_URL=$(curl -fsSL -o /dev/null -w "%{url_effective}" "https://github.com/kabroxiko/dayzctl/releases/latest") || {
+        error "Failed to follow redirect to latest release"
     }
 
-    if [ -z "$RELEASE_JSON" ]; then
-        error "Empty response from GitHub API"
+    if [ -z "$REDIRECT_URL" ]; then
+        error "Empty redirect URL from GitHub"
     fi
 
-    log "Parsing release information..."
-    VERSION=$(echo "$RELEASE_JSON" | grep -o '"tag_name":"v[^"]*"' | sed 's/"tag_name":"v\([^"]*\)"/\1/')
+    VERSION=$(echo "$REDIRECT_URL" | grep -o 'v[0-9.]*$' | sed 's/^v//')
 
     if [ -z "$VERSION" ]; then
-        error "Failed to extract version from release. API response: $RELEASE_JSON"
+        error "Failed to extract version from redirect URL: $REDIRECT_URL"
     fi
 
     ASSET="dayzctl_${VERSION}_${OS}_${ARCH}.tar.gz"
