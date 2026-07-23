@@ -103,7 +103,6 @@ type InstanceData struct {
 	Port        int
 	ServerDir   string
 	BattlEyeDir string
-	StorageDir  string
 	Mods        string
 	ServerMods  string
 	CPUCount    int
@@ -156,18 +155,16 @@ func (s *Systemd) GenerateUnits(cfg *config.ServerConfig) error {
 
 	for _, instance := range cfg.GetEnabledInstances() {
 		beDir := filepath.Join(installDir, "battleye-"+instance.Name)
-		storageDir := filepath.Join(installDir, "storage-"+instance.Name)
 		data := InstanceData{
 			Name:        instance.Name,
 			Port:        instance.Port,
 			ServerDir:   installDir,
 			BattlEyeDir: beDir,
-			StorageDir:  storageDir,
 			Mods:        formatModsForSystemd(instance.Mods),
 			ServerMods:  formatModsForSystemd(instance.ServerMods),
 			CPUCount:    cpuCount,
 		}
-		logger.Debug("Instance unit data", "instance", instance.Name, "beDir", beDir, "storageDir", storageDir, "cpuCount", cpuCount)
+		logger.Debug("Instance unit data", "instance", instance.Name, "beDir", beDir, "cpuCount", cpuCount)
 
 		var svcBuf bytes.Buffer
 		if err := svcTmpl.Execute(&svcBuf, data); err != nil {
