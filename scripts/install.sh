@@ -365,6 +365,10 @@ main() {
 
 
 
+
+
+
+
     detect_distro
     create_structure
     create_user
