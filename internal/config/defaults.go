@@ -2,6 +2,10 @@ package config
 
 // SetDefaults sets default values for the configuration
 func (c *ServerConfig) SetDefaults() {
+	if c.Paths.Base == "" {
+		c.Paths.Base = "/srv/dayz"
+	}
+	
 	if c.Server.MaxPlayers == 0 {
 		c.Server.MaxPlayers = 60
 	}
