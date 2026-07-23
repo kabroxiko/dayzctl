@@ -358,11 +358,10 @@ main() {
     log "dayzctl: root tool for server management"
     log "dayz user: runs steamcmd and server processes"
     log ""
-    # Ask interactively for configuration when running in a TTY
+    
     prompt_for_values
 
     detect_distro
-    debug_log "DAYZ_HOME=$DAYZ_HOME STEAM_USER=$STEAM_USER REINSTALL=$REINSTALL"
     create_structure
     create_user
     install_deps
@@ -378,7 +377,7 @@ main() {
     log "Configuration applied successfully"
     
     log "Downloading/updating DayZ server (this may take a while)..."
-    if ! runuser -u dayz -- /usr/local/bin/dayzctl update; then
+    if ! /usr/local/bin/dayzctl update; then
         error "dayzctl update failed - check the error above"
     fi
     log "DayZ server downloaded/updated successfully"
