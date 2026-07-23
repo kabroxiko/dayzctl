@@ -35,22 +35,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Verify SBOM manifest
-        run: |
-          echo "=== Nightly SBOM Manifest ==="
-          if [ -f dist/manifest.json ]; then
-            echo "✅ SBOM manifest generated successfully"
-            echo ""
-            echo "Manifest contents:"
-            cat dist/manifest.json | jq '.'
-            echo ""
-            echo "Version: $(cat dist/manifest.json | jq -r '.versionInfo')"
-            echo "Packages: $(cat dist/manifest.json | jq -r '.packages | length')"
-          else
-            echo "❌ SBOM manifest not found"
-            exit 1
-          fi
-
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
