@@ -54,11 +54,11 @@ detect_distro() {
     if [ ! -f /etc/os-release ]; then
         error "Cannot detect distribution: /etc/os-release not found"
     fi
-    
+
     . /etc/os-release
-    
+
     DISTRO_ID="${ID:-unknown}"
-    
+
     if [ -n "${ID_LIKE:-}" ]; then
         DISTRO_FAMILY="$ID_LIKE"
     else
@@ -69,7 +69,7 @@ detect_distro() {
             *) DISTRO_FAMILY="unknown" ;;
         esac
     fi
-    
+
     if [ -z "$DISTRO_FAMILY" ] || [ "$DISTRO_FAMILY" = "unknown" ]; then
         case "$ID" in
             ubuntu|debian) DISTRO_FAMILY="apt" ;;
@@ -78,7 +78,7 @@ detect_distro() {
             *) error "Unsupported distribution: $ID (family: $DISTRO_FAMILY)" ;;
         esac
     fi
-    
+
     log "detected distro: $ID (family $DISTRO_FAMILY)"
 }
 
@@ -104,7 +104,7 @@ create_user() {
         log "user dayz already exists"
         return 0
     fi
-    
+
     log "creating user dayz"
     useradd -m -d "$DAYZ_HOME" -s /bin/bash dayz || error "Failed to create dayz user"
     chown -R dayz:dayz "$DAYZ_HOME" || error "Failed to set ownership for dayz user"
@@ -115,7 +115,7 @@ create_user() {
 # ============================================================================
 install_deps() {
     log "enabling i386 architecture and installing dependencies ($DISTRO_FAMILY)"
-    
+
     case "$DISTRO_FAMILY" in
         apt|debian)
             dpkg --add-architecture i386 || error "Failed to add i386 architecture"
@@ -160,12 +160,12 @@ install_deps() {
 # ============================================================================
 install_steamcmd() {
     log "installing SteamCMD in $DAYZ_HOME/steamcmd"
-    
+
     if [ -f "$DAYZ_HOME/steamcmd/steamcmd.sh" ] && [ "$REINSTALL" != "1" ]; then
         log "SteamCMD already installed"
         return 0
     fi
-    
+
     mkdir -p "$DAYZ_HOME/steamcmd" || error "Failed to create steamcmd directory"
     chown dayz:dayz "$DAYZ_HOME/steamcmd" || error "Failed to set ownership on steamcmd directory"
 
@@ -209,18 +209,11 @@ install_dayzctl() {
     log "Fetching latest release from GitHub API..."
     RELEASE_URL="https://api.github.com/repos/kabroxiko/dayzctl/releases/latest"
     
-    # Use a temporary file to capture both output and exit code
-    TMP_RESPONSE=$(mktemp)
-    HTTP_CODE=$(curl -fsSL -w "%{http_code}" -o "$TMP_RESPONSE" "$RELEASE_URL" 2>/dev/null || echo "000")
-    
-    if [ "$HTTP_CODE" != "200" ]; then
-        rm -f "$TMP_RESPONSE"
-        error "GitHub API returned HTTP $HTTP_CODE. Check network connectivity and repository access."
-    fi
-    
-    RELEASE_JSON=$(cat "$TMP_RESPONSE")
-    rm -f "$TMP_RESPONSE"
-    
+    # Capture both stdout and stderr, but don't let pipefail cause exit
+    RELEASE_JSON=$(curl -fsSL "$RELEASE_URL" 2>/dev/null) || {
+        error "Failed to connect to GitHub API. Check network connectivity."
+    }
+
     if [ -z "$RELEASE_JSON" ]; then
         error "Empty response from GitHub API"
     fi
@@ -241,16 +234,9 @@ install_dayzctl() {
     log "Download URL: $DL_URL"
 
     log "Downloading checksums..."
-    TMP_CHECKSUMS=$(mktemp)
-    HTTP_CODE=$(curl -fsSL -w "%{http_code}" -o "$TMP_CHECKSUMS" "$CHECKSUM_URL" 2>/dev/null || echo "000")
-    
-    if [ "$HTTP_CODE" != "200" ]; then
-        rm -f "$TMP_CHECKSUMS"
-        error "Failed to download checksums (HTTP $HTTP_CODE) from $CHECKSUM_URL"
-    fi
-    
-    CHECKSUMS=$(cat "$TMP_CHECKSUMS")
-    rm -f "$TMP_CHECKSUMS"
+    CHECKSUMS=$(curl -fsSL "$CHECKSUM_URL" 2>/dev/null) || {
+        error "Failed to download checksums from $CHECKSUM_URL"
+    }
 
     if [ -z "$CHECKSUMS" ]; then
         error "Empty checksums file from $CHECKSUM_URL"
@@ -259,7 +245,7 @@ install_dayzctl() {
     EXPECTED_CHECKSUM=$(echo "$CHECKSUMS" | grep " ${ASSET}$" | awk '{print $1}')
 
     if [ -z "$EXPECTED_CHECKSUM" ]; then
-        error "Checksum not found for ${ASSET} in checksums file. Available: $CHECKSUMS"
+        error "Checksum not found for ${ASSET} in checksums file"
     fi
 
     log "Expected checksum: $EXPECTED_CHECKSUM"
@@ -268,12 +254,10 @@ install_dayzctl() {
     TMP_FILE="${TMP_DIR}/${ASSET}"
 
     log "Downloading binary from $DL_URL..."
-    HTTP_CODE=$(curl -fsSL -w "%{http_code}" -o "$TMP_FILE" "$DL_URL" 2>/dev/null || echo "000")
-    
-    if [ "$HTTP_CODE" != "200" ]; then
+    curl -fsSL -o "$TMP_FILE" "$DL_URL" 2>/dev/null || {
         rm -rf "$TMP_DIR"
-        error "Failed to download ${ASSET} (HTTP $HTTP_CODE) from $DL_URL"
-    fi
+        error "Failed to download ${ASSET} from $DL_URL"
+    }
 
     if [ ! -f "$TMP_FILE" ]; then
         rm -rf "$TMP_DIR"
@@ -291,10 +275,10 @@ install_dayzctl() {
     log "Checksum verified successfully"
 
     log "Extracting archive..."
-    if ! tar -xzf "$TMP_FILE" -C "$TMP_DIR" 2>&1; then
+    tar -xzf "$TMP_FILE" -C "$TMP_DIR" 2>/dev/null || {
         rm -rf "$TMP_DIR"
         error "Failed to extract archive"
-    fi
+    }
 
     if [ ! -f "${TMP_DIR}/dayzctl" ]; then
         rm -rf "$TMP_DIR"
@@ -332,20 +316,10 @@ create_config() {
         error "Failed to create temporary file"
     fi
 
-    if command -v curl >/dev/null 2>&1; then
-        if ! curl -fsSL "$TEMPLATE_URL" -o "$TMP_TEMPLATE"; then
-            rm -f "$TMP_TEMPLATE"
-            error "Failed to download template from $TEMPLATE_URL"
-        fi
-    elif command -v wget >/dev/null 2>&1; then
-        if ! wget -qO "$TMP_TEMPLATE" "$TEMPLATE_URL"; then
-            rm -f "$TMP_TEMPLATE"
-            error "Failed to download template from $TEMPLATE_URL"
-        fi
-    else
+    curl -fsSL "$TEMPLATE_URL" -o "$TMP_TEMPLATE" 2>/dev/null || {
         rm -f "$TMP_TEMPLATE"
-        error "Neither curl nor wget available to download template"
-    fi
+        error "Failed to download template from $TEMPLATE_URL"
+    }
 
     log "Template downloaded successfully"
 
@@ -376,7 +350,7 @@ main() {
     log "dayzctl: root tool for server management"
     log "dayz user: runs steamcmd and server processes"
     log ""
-    
+
     prompt_for_values
 
     detect_distro
@@ -387,19 +361,19 @@ main() {
     install_dayzctl
     create_config
     set_ownership
-    
+
     log "Applying configuration..."
     if ! /usr/local/bin/dayzctl apply; then
         error "dayzctl apply failed - check the error above"
     fi
     log "Configuration applied successfully"
-    
+
     log "Downloading/updating DayZ server (this may take a while)..."
     if ! /usr/local/bin/dayzctl update; then
         error "dayzctl update failed - check the error above"
     fi
     log "DayZ server downloaded/updated successfully"
-    
+
     log ""
     log "=== Installation Complete ==="
     log ""
