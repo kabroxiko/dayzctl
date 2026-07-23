@@ -206,8 +206,12 @@ install_dayzctl() {
     fi
 
     log "Fetching latest version from GitHub redirect..."
-    REDIRECT_URL=$(curl -fsSL -o /dev/null -w "%{url_effective}" "https://github.com/kabroxiko/dayzctl/releases/latest") || {
-        error "Failed to follow redirect to latest release"
+    log "CURL command: curl -fsSL -o /dev/null -w \"%{url_effective}\" \"https://github.com/kabroxiko/dayzctl/releases/latest\""
+    
+    REDIRECT_URL=$(curl -fsSL -o /dev/null -w "%{url_effective}" "https://github.com/kabroxiko/dayzctl/releases/latest" 2>&1) || {
+        local curl_exit=$?
+        log "CURL exit code: $curl_exit"
+        error "Failed to follow redirect to latest release (curl exit code: $curl_exit)"
     }
 
     log "Redirect URL: $REDIRECT_URL"
@@ -217,12 +221,20 @@ install_dayzctl() {
     fi
 
     # Check if the redirect URL contains a version tag
+    log "Checking if redirect URL contains version tag..."
     if echo "$REDIRECT_URL" | grep -q '/tag/v[0-9.]*$'; then
+        log "Version tag found in redirect URL"
         VERSION=$(echo "$REDIRECT_URL" | grep -o 'v[0-9.]*$' | sed 's/^v//')
+        log "Extracted version: $VERSION"
     else
         # No release exists - this is the first release
-        log "No existing releases found. This appears to be the first release."
-        log "Please create a release manually or use a local build."
+        log "ERROR: No version tag found in redirect URL: $REDIRECT_URL"
+        log "This means there are no releases on the GitHub repository."
+        log "To fix this, create a release on GitHub:"
+        log "  https://github.com/kabroxiko/dayzctl/releases/new"
+        log ""
+        log "Alternatively, build from source:"
+        log "  go build -o /usr/local/bin/dayzctl ./cmd/dayzctl"
         error "No releases available. Create a release on GitHub or use a local build."
     fi
 
@@ -236,9 +248,13 @@ install_dayzctl() {
 
     log "Installing dayzctl v${VERSION}"
     log "Asset: $ASSET"
+    log "Download URL: $DL_URL"
 
     log "Downloading checksums..."
-    CHECKSUMS=$(curl -fsSL "$CHECKSUM_URL" 2>/dev/null) || {
+    CHECKSUMS=$(curl -fsSL "$CHECKSUM_URL" 2>&1) || {
+        local curl_exit=$?
+        log "CURL exit code: $curl_exit"
+        log "CURL output: $CHECKSUMS"
         error "Failed to download checksums from $CHECKSUM_URL"
     }
 
@@ -258,7 +274,7 @@ install_dayzctl() {
     TMP_FILE="${TMP_DIR}/${ASSET}"
 
     log "Downloading binary from $DL_URL..."
-    curl -fsSL -o "$TMP_FILE" "$DL_URL" 2>/dev/null || {
+    curl -fsSL -o "$TMP_FILE" "$DL_URL" 2>&1 || {
         rm -rf "$TMP_DIR"
         error "Failed to download ${ASSET} from $DL_URL"
     }
@@ -279,7 +295,7 @@ install_dayzctl() {
     log "Checksum verified successfully"
 
     log "Extracting archive..."
-    tar -xzf "$TMP_FILE" -C "$TMP_DIR" 2>/dev/null || {
+    tar -xzf "$TMP_FILE" -C "$TMP_DIR" 2>&1 || {
         rm -rf "$TMP_DIR"
         error "Failed to extract archive"
     }
