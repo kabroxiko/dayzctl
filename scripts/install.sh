@@ -304,6 +304,9 @@ create_config() {
 
     log "creating default config at $CONFIG_PATH"
 
+    # Create /etc/dayzctl directory
+    mkdir -p /etc/dayzctl || error "Failed to create /etc/dayzctl"
+
     TEMPLATE_URL="https://raw.githubusercontent.com/kabroxiko/dayzctl/main/scripts/config.yaml.tmpl"
     TMP_TEMPLATE=$(mktemp)
 
