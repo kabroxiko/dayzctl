@@ -187,6 +187,8 @@ install_dayzctl() {
     ARCH=$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/')
     OS=$(uname -s | tr '[:upper:]' '[:lower:]')
     
+    log "Detected architecture: $ARCH, OS: $OS"
+    
     rm -f /usr/local/bin/dayzctl
     
     LOCAL_BINARY="./build/dayzctl-${OS}-${ARCH}"
@@ -204,17 +206,19 @@ install_dayzctl() {
         return 0
     fi
     
+    log "Fetching latest release from GitHub API..."
     RELEASE_URL="https://api.github.com/repos/kabroxiko/dayzctl/releases/latest"
-    RELEASE_JSON=$(curl -fsSL "$RELEASE_URL")
+    RELEASE_JSON=$(curl -fsSL "$RELEASE_URL" 2>&1)
     
     if [ -z "$RELEASE_JSON" ]; then
-        error "Failed to get latest release from GitHub"
+        error "Failed to get latest release from GitHub API. Response: $RELEASE_JSON"
     fi
     
+    log "Parsing release information..."
     VERSION=$(echo "$RELEASE_JSON" | grep -o '"tag_name":"v[^"]*"' | sed 's/"tag_name":"v\([^"]*\)"/\1/')
     
     if [ -z "$VERSION" ]; then
-        error "Failed to extract version from release"
+        error "Failed to extract version from release. Response: $RELEASE_JSON"
     fi
     
     ASSET="dayzctl_${VERSION}_${OS}_${ARCH}.tar.gz"
@@ -222,48 +226,70 @@ install_dayzctl() {
     CHECKSUM_URL="https://github.com/kabroxiko/dayzctl/releases/download/v${VERSION}/checksums.txt"
     
     log "Installing dayzctl v${VERSION}"
-    log "Downloading ${ASSET}..."
+    log "Asset: $ASSET"
+    log "Download URL: $DL_URL"
     
-    CHECKSUMS=$(curl -fsSL "$CHECKSUM_URL")
+    log "Downloading checksums..."
+    CHECKSUMS=$(curl -fsSL "$CHECKSUM_URL" 2>&1)
     
     if [ -z "$CHECKSUMS" ]; then
-        error "Failed to download checksums"
+        error "Failed to download checksums from $CHECKSUM_URL. Response: $CHECKSUMS"
     fi
     
     EXPECTED_CHECKSUM=$(echo "$CHECKSUMS" | grep " ${ASSET}$" | awk '{print $1}')
     
     if [ -z "$EXPECTED_CHECKSUM" ]; then
-        error "Checksum not found for ${ASSET}"
+        error "Checksum not found for ${ASSET} in checksums file"
     fi
+    
+    log "Expected checksum: $EXPECTED_CHECKSUM"
     
     TMP_DIR=$(mktemp -d)
     TMP_FILE="${TMP_DIR}/${ASSET}"
     
-    curl -fsSL -o "$TMP_FILE" "$DL_URL"
+    log "Downloading binary from $DL_URL..."
+    if ! curl -fsSL -o "$TMP_FILE" "$DL_URL" 2>&1; then
+        rm -rf "$TMP_DIR"
+        error "Failed to download ${ASSET} from $DL_URL"
+    fi
     
     if [ ! -f "$TMP_FILE" ]; then
         rm -rf "$TMP_DIR"
-        error "Failed to download ${ASSET}"
+        error "Downloaded file not found: $TMP_FILE"
     fi
     
     ACTUAL_CHECKSUM=$(sha256sum "$TMP_FILE" | awk '{print $1}')
+    log "Actual checksum: $ACTUAL_CHECKSUM"
     
     if [ "$ACTUAL_CHECKSUM" != "$EXPECTED_CHECKSUM" ]; then
         rm -rf "$TMP_DIR"
-        error "Checksum verification failed"
+        error "Checksum verification failed. Expected: $EXPECTED_CHECKSUM, Got: $ACTUAL_CHECKSUM"
     fi
     
-    tar -xzf "$TMP_FILE" -C "$TMP_DIR"
+    log "Checksum verified successfully"
+    
+    log "Extracting archive..."
+    if ! tar -xzf "$TMP_FILE" -C "$TMP_DIR" 2>&1; then
+        rm -rf "$TMP_DIR"
+        error "Failed to extract archive"
+    fi
+    
+    if [ ! -f "${TMP_DIR}/dayzctl" ]; then
+        rm -rf "$TMP_DIR"
+        error "Binary not found in archive"
+    fi
+    
     mv "${TMP_DIR}/dayzctl" /usr/local/bin/dayzctl
     chmod 755 /usr/local/bin/dayzctl
     
     rm -rf "$TMP_DIR"
     
+    log "Verifying installation..."
     if ! /usr/local/bin/dayzctl version > /dev/null 2>&1; then
         error "dayzctl verification failed"
     fi
     
-    log "dayzctl v${VERSION} installed successfully"
+    log "dayzctl v${VERSION} installed successfully: $(/usr/local/bin/dayzctl version)"
 }
 
 # ============================================================================
@@ -276,8 +302,6 @@ create_config() {
     fi
 
     log "creating default config at $CONFIG_PATH"
-
-    mkdir -p /etc/dayzctl || error "Failed to create /etc/dayzctl"
 
     TEMPLATE_URL="https://raw.githubusercontent.com/kabroxiko/dayzctl/main/scripts/config.yaml.tmpl"
     TMP_TEMPLATE=$(mktemp)
