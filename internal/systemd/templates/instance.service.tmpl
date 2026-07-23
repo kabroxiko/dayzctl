@@ -12,6 +12,7 @@ ExecStart={{ .ServerDir }}/DayZServer \
   -port={{ .Port }} \
   -profiles={{ .ServerDir }}/profiles/{{ .Name }} \
   -BEpath={{ .BattlEyeDir }} \
+  -storage={{ .StorageDir }} \
   -mod={{ .Mods }} \
   -servermod={{ .ServerMods }} \
   -cpuCount={{ .CPUCount }} \
