@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"text/template"
 
@@ -92,6 +93,11 @@ func (s *Systemd) ListRunningInstances() ([]string, error) {
 	return instances, nil
 }
 
+// getCPUCount returns the number of CPU cores
+func getCPUCount() int {
+	return runtime.NumCPU()
+}
+
 type InstanceData struct {
 	Name        string
 	Port        int
@@ -99,6 +105,7 @@ type InstanceData struct {
 	BattlEyeDir string
 	Mods        string
 	ServerMods  string
+	CPUCount    int
 }
 
 // formatModsForSystemd formats mods for systemd with the path
@@ -143,6 +150,9 @@ func (s *Systemd) GenerateUnits(cfg *config.ServerConfig) error {
 	installDir := cfg.GetInstallDir()
 	logger.Debug("Generating systemd units", "installDir", installDir)
 
+	cpuCount := getCPUCount()
+	logger.Info("Detected CPU cores", "count", cpuCount)
+
 	for _, instance := range cfg.GetEnabledInstances() {
 		beDir := filepath.Join(installDir, "battleye-"+instance.Name)
 		data := InstanceData{
@@ -152,8 +162,9 @@ func (s *Systemd) GenerateUnits(cfg *config.ServerConfig) error {
 			BattlEyeDir: beDir,
 			Mods:        formatModsForSystemd(instance.Mods),
 			ServerMods:  formatModsForSystemd(instance.ServerMods),
+			CPUCount:    cpuCount,
 		}
-		logger.Debug("Instance unit data", "instance", instance.Name, "beDir", beDir)
+		logger.Debug("Instance unit data", "instance", instance.Name, "beDir", beDir, "cpuCount", cpuCount)
 
 		var svcBuf bytes.Buffer
 		if err := svcTmpl.Execute(&svcBuf, data); err != nil {

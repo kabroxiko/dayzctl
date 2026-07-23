@@ -14,7 +14,7 @@ ExecStart={{ .ServerDir }}/DayZServer \
   -BEpath={{ .BattlEyeDir }} \
   -mod={{ .Mods }} \
   -servermod={{ .ServerMods }} \
-  -cpuCount=4 \
+  -cpuCount={{ .CPUCount }} \
   -dologs \
   -adminlog \
   -netLog \
