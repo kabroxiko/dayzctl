@@ -75,7 +75,6 @@ func (s *SteamCmd) runSteamCmdWithOutput(args ...string) (string, error) {
 	output, err := cmd.CombinedOutput()
 	outStr := string(output)
 	
-	// Log first few lines of output for debugging
 	lines := strings.Split(outStr, "\n")
 	if len(lines) > 10 {
 		logger.Debug("steamcmd output (first 10 lines)", "output", strings.Join(lines[:10], "\n"))
@@ -93,11 +92,6 @@ func (s *SteamCmd) runSteamCmdWithOutput(args ...string) (string, error) {
 
 // GetBuildID retrieves the current build ID from Steam
 func (s *SteamCmd) GetBuildID() (string, error) {
-	if cached := s.getCachedBuildID(); cached != "" {
-		logger.Debug("Using cached build ID", "build_id", cached)
-		return cached, nil
-	}
-
 	logger.Info("Fetching build ID from Steam...")
 	output, err := s.runSteamCmdWithOutput(
 		"+@sSteamCmdForcePlatformType", "linux",
@@ -119,7 +113,6 @@ func (s *SteamCmd) GetBuildID() (string, error) {
 			parts := strings.Fields(line)
 			if len(parts) >= 2 {
 				buildID := strings.Trim(parts[1], `"`)
-				s.cacheBuildID(buildID)
 				logger.Info("Retrieved build ID", "build_id", buildID)
 				return buildID, nil
 			}
@@ -140,33 +133,43 @@ func (s *SteamCmd) getCurrentLocalBuildID() (string, error) {
 			re := regexp.MustCompile(`"buildid"\s+"(\d+)"`)
 			matches := re.FindStringSubmatch(content)
 			if len(matches) > 1 {
-				logger.Info("Local build ID from manifest", "build_id", matches[1])
-				return matches[1], nil
+				buildID := matches[1]
+				logger.Info("Local build ID from manifest", "build_id", buildID)
+				return buildID, nil
 			}
 		}
 	} else {
 		logger.Warn("App manifest not found, server not installed", "path", appManifestPath)
+		return "", nil
 	}
 	
-	return s.getCachedBuildID(), nil
+	return "", nil
 }
 
 // NeedsUpdate checks if the server needs an update
 func (s *SteamCmd) NeedsUpdate() (bool, error) {
 	logger.Info("Checking for updates...")
 	
+	// Check if server is installed FIRST
+	localBuildID, err := s.getCurrentLocalBuildID()
+	if err != nil {
+		logger.Warn("Error reading local build ID", "error", err)
+		return true, nil
+	}
+	
+	// If no local build ID, server is not installed - force update
+	if localBuildID == "" {
+		logger.Info("Server not installed, update required")
+		return true, nil
+	}
+	
+	// Only get latest build ID if server is installed
 	latestBuildID, err := s.GetBuildID()
 	if err != nil {
 		if errors.Is(err, ErrRateLimited) {
 			return false, err
 		}
 		return false, err
-	}
-	
-	localBuildID, err := s.getCurrentLocalBuildID()
-	if err != nil || localBuildID == "" {
-		logger.Warn("Could not determine local build ID, assuming update needed")
-		return true, nil
 	}
 	
 	logger.Debug("Comparing builds", "local", localBuildID, "latest", latestBuildID)
@@ -188,10 +191,6 @@ func (s *SteamCmd) Update() error {
 	logger.Info("SteamCMD path", "path", s.SteamCmdPath)
 	logger.Info("Install directory", "path", s.InstallDir)
 	logger.Info("Steam user", "user", s.User)
-	
-	cmdStr := fmt.Sprintf("%s +@sSteamCmdForcePlatformType linux +force_install_dir %s +login %s +app_update 223350 validate +quit", 
-		s.SteamCmdPath, s.InstallDir, s.User)
-	logger.Info("Running steamcmd update command", "cmd", cmdStr)
 	
 	err := s.runSteamCmd(
 		"+@sSteamCmdForcePlatformType", "linux",
@@ -319,24 +318,6 @@ func (s *SteamCmd) InteractiveLogin() error {
 // isRateLimited checks if we're rate limited
 func (s *SteamCmd) isRateLimited() bool {
 	return time.Since(s.lastAttempt) < 5*time.Minute
-}
-
-// getCachedBuildID retrieves cached build ID
-func (s *SteamCmd) getCachedBuildID() string {
-	cacheFile := "/tmp/steam_buildid_" + s.User
-	data, err := os.ReadFile(cacheFile)
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(data))
-}
-
-// cacheBuildID caches the build ID
-func (s *SteamCmd) cacheBuildID(buildID string) {
-	cacheFile := "/tmp/steam_buildid_" + s.User
-	if err := os.WriteFile(cacheFile, []byte(buildID), 0644); err != nil {
-		_ = err
-	}
 }
 
 // IsRateLimitError checks if an error is a rate limit error
