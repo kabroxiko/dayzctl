@@ -212,6 +212,9 @@ install_dayzctl() {
         error "Failed to fetch latest release from GitHub"
     }
 
+
+
+
     if [ -z "$REDIRECT_URL" ]; then
         error "Empty redirect URL from GitHub"
     fi
