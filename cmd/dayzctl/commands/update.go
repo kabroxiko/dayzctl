@@ -3,6 +3,7 @@ package commands
 import (
 	"fmt"
 
+	"github.com/kabroxiko/dayzctl/cmd/dayzctl/commands/shared"
 	"github.com/kabroxiko/dayzctl/internal/lock"
 	"github.com/kabroxiko/dayzctl/internal/logger"
 	"github.com/kabroxiko/dayzctl/internal/mods"
@@ -16,7 +17,7 @@ func UpdateCmd() *cobra.Command {
 		Use:   "update",
 		Short: "Update DayZ server (stops/restarts services only if update available)",
 		Run: func(cmd *cobra.Command, args []string) {
-			RunCommand(func() error {
+			shared.RunCommand(func() error {
 				l, err := lock.New("/run/dayzctl.lock")
 				if err != nil {
 					return fmt.Errorf("failed to acquire lock: %w", err)
@@ -27,16 +28,16 @@ func UpdateCmd() *cobra.Command {
 					}
 				}()
 
-				if !Config.Updates.Enabled {
+				if !shared.Config.Updates.Enabled {
 					logger.Info("Updates are disabled in config")
 					return nil
 				}
 
 				logger.Info("Starting update check...")
-				if Config.GetSteamcmdBin() == "" {
+				if shared.Config.GetSteamcmdBin() == "" {
 					return fmt.Errorf("steamcmd path not configured; set 'paths.steamcmd_bin' in the config or install SteamCMD via the installer")
 				}
-				steam := steamcmd.New(Config.GetSteamUser(), Config.GetInstallDir(), Config.GetSteamcmdBin())
+				steam := steamcmd.New(shared.Config.GetSteamUser(), shared.Config.GetInstallDir(), shared.Config.GetSteamcmdBin())
 
 				// Check current build ID
 				buildID, err := steam.GetBuildID()
@@ -90,8 +91,8 @@ func UpdateCmd() *cobra.Command {
 				logger.Info("Update completed successfully")
 
 				// Sync mods for all enabled instances
-				modManager := mods.New(Config.GetInstallDir(), Config.Paths.WorkshopDir)
-				for _, instance := range Config.Instances {
+				modManager := mods.New(shared.Config.GetInstallDir(), shared.Config.Paths.WorkshopDir)
+				for _, instance := range shared.Config.Instances {
 					if instance.Enabled {
 						allMods := append(instance.Mods, instance.ServerMods...)
 						if len(allMods) > 0 {

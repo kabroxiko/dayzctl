@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/kabroxiko/dayzctl/cmd/dayzctl/commands/mods"
+	"github.com/kabroxiko/dayzctl/cmd/dayzctl/commands/rcon"
+	"github.com/kabroxiko/dayzctl/cmd/dayzctl/commands/shared"
 	"github.com/kabroxiko/dayzctl/internal/config"
 	"github.com/kabroxiko/dayzctl/internal/logger"
 	"github.com/kabroxiko/dayzctl/internal/version"
@@ -13,7 +16,6 @@ import (
 var (
 	configPath string
 	logLevel   string
-	Config     *config.ServerConfig
 	rootCmd    *cobra.Command
 )
 
@@ -32,10 +34,17 @@ func init() {
 			return fmt.Errorf("dayzctl must be run as root")
 		}
 		var err error
-		Config, err = config.Load(configPath)
+		shared.Config, err = config.Load(configPath)
 		if err != nil {
 			return fmt.Errorf("failed to load config: %w", err)
 		}
+		
+		for _, inst := range shared.Config.Instances {
+			if inst.Name == "all" {
+				return fmt.Errorf("instance name 'all' is reserved and cannot be used")
+			}
+		}
+		
 		logger.Init(logLevel)
 		return nil
 	}
@@ -45,11 +54,13 @@ func init() {
 		ValidateConfigCmd(),
 		UpdateCmd(),
 		SteamLoginCmd(),
-		ModsCmd(),
-		RconCmd(),
-		InstanceCmd(),
-		PlayersCmd(),
+		mods.ModsCmd(),
+		rcon.RconCmd(),
+		StartCmd(),
+		StopCmd(),
+		RestartCmd(),
 		StatusCmd(),
+		ListCmd(),
 		ApplyCmd(),
 		CheckSpaceCmd(),
 		RenderConfigCmd(),

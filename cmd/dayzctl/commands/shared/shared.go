@@ -1,4 +1,4 @@
-package commands
+package shared
 
 import (
 	"fmt"
@@ -8,11 +8,21 @@ import (
 	"strings"
 
 	"github.com/kabroxiko/dayzctl/internal/config"
+	"github.com/kabroxiko/dayzctl/internal/generate"
+	"github.com/kabroxiko/dayzctl/internal/logger"
+	"github.com/kabroxiko/dayzctl/internal/systemd"
+	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
 
-// GetInstance returns an instance by name
+var (
+	Config *config.ServerConfig
+)
+
 func GetInstance(name string) (*config.Instance, error) {
+	if name == "all" {
+		return nil, fmt.Errorf("'all' is a reserved keyword for targeting all instances")
+	}
 	if Config == nil {
 		return nil, fmt.Errorf("config not loaded")
 	}
@@ -24,7 +34,26 @@ func GetInstance(name string) (*config.Instance, error) {
 	return nil, fmt.Errorf("instance not found: %s", name)
 }
 
-// RunCommand executes a function and handles errors without showing usage
+func GetInstances(name string) ([]*config.Instance, error) {
+	if name == "all" {
+		var instances []*config.Instance
+		for i := range Config.Instances {
+			if Config.Instances[i].Enabled {
+				instances = append(instances, &Config.Instances[i])
+			}
+		}
+		if len(instances) == 0 {
+			return nil, fmt.Errorf("no enabled instances found")
+		}
+		return instances, nil
+	}
+	instance, err := GetInstance(name)
+	if err != nil {
+		return nil, err
+	}
+	return []*config.Instance{instance}, nil
+}
+
 func RunCommand(fn func() error) {
 	if err := fn(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -32,7 +61,6 @@ func RunCommand(fn func() error) {
 	}
 }
 
-// SaveConfig writes the current config back to the YAML file
 func SaveConfig() error {
 	if Config == nil {
 		return fmt.Errorf("config not loaded")
@@ -44,9 +72,8 @@ func SaveConfig() error {
 	}
 
 	configPath := config.DefaultConfigPath()
-	// prefer config override if present
-	if Config.Paths.InstallDir != "" {
-		configPath = Config.Paths.InstallDir + "/config/server.yaml"
+	if Config.Paths.Base != "" {
+		configPath = Config.Paths.Base + "/config/server.yaml"
 	}
 
 	if err := os.WriteFile(configPath, data, 0644); err != nil {
@@ -56,7 +83,6 @@ func SaveConfig() error {
 	return nil
 }
 
-// UpdateServerConfig updates the serverDZ-{instance}.cfg file with client mods only
 func UpdateServerConfig(instance *config.Instance) error {
 	configPath := fmt.Sprintf("%s/serverDZ-%s.cfg", Config.GetInstallDir(), instance.Name)
 
@@ -102,7 +128,6 @@ func UpdateServerConfig(instance *config.Instance) error {
 	return nil
 }
 
-// RestartInstance restarts a server instance
 func RestartInstance(instanceName string) error {
 	cmd := exec.Command("systemctl", "restart", "dayz@"+instanceName)
 	if err := cmd.Run(); err != nil {
@@ -110,4 +135,34 @@ func RestartInstance(instanceName string) error {
 	}
 	return nil
 }
- 
+
+func GetInstanceNameFromParent(cmd *cobra.Command) string {
+	parent := cmd.Parent()
+	if parent == nil {
+		return ""
+	}
+	args := parent.Flags().Args()
+	if len(args) > 0 {
+		return args[0]
+	}
+	return ""
+}
+
+func ApplyConfig() error {
+	logger.Info("Applying configuration changes...")
+
+	if err := generate.GenerateAll(Config); err != nil {
+		return fmt.Errorf("failed to generate server configs: %w", err)
+	}
+
+	sysd := systemd.New()
+	if err := sysd.GenerateUnits(Config); err != nil {
+		return fmt.Errorf("failed to generate units: %w", err)
+	}
+	if err := sysd.Reload(); err != nil {
+		return fmt.Errorf("failed to reload systemd: %w", err)
+	}
+
+	logger.Info("Configuration applied successfully")
+	return nil
+}
