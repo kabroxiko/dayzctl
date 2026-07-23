@@ -3,6 +3,7 @@ package commands
 import (
 	"fmt"
 
+	"github.com/kabroxiko/dayzctl/cmd/dayzctl/commands/shared"
 	"github.com/kabroxiko/dayzctl/internal/generate"
 	"github.com/kabroxiko/dayzctl/internal/logger"
 	"github.com/kabroxiko/dayzctl/internal/systemd"
@@ -21,27 +22,24 @@ This command:
   3. Reloads systemd daemon
   4. Enables instances and timers
 
-It does NOT start, stop, or restart any services. Use 'dayzctl instance start/stop/restart' for that.`,
+It does NOT start, stop, or restart any services. Use 'dayzctl start/stop/restart' for that.`,
 		Run: func(cmd *cobra.Command, args []string) {
-			RunCommand(func() error {
-				// Generate server configs (serverDZ.cfg, BEServer.cfg)
+			shared.RunCommand(func() error {
 				logger.Info("Generating server configs...")
-				if err := generate.GenerateAll(Config); err != nil {
+				if err := generate.GenerateAll(shared.Config); err != nil {
 					return fmt.Errorf("failed to generate server configs: %w", err)
 				}
 
-				// Generate systemd units
 				sysd := systemd.New()
 				logger.Info("Generating systemd units...")
-				if err := sysd.GenerateUnits(Config); err != nil {
+				if err := sysd.GenerateUnits(shared.Config); err != nil {
 					return fmt.Errorf("failed to generate units: %w", err)
 				}
 				if err := sysd.Reload(); err != nil {
 					return fmt.Errorf("failed to reload systemd: %w", err)
 				}
 
-				// Enable instances (but don't start them)
-				for _, instance := range Config.Instances {
+				for _, instance := range shared.Config.Instances {
 					if instance.Enabled {
 						logger.Info("Enabling instance", "name", instance.Name)
 						if err := sysd.Enable("dayz@" + instance.Name); err != nil {
@@ -50,8 +48,7 @@ It does NOT start, stop, or restart any services. Use 'dayzctl instance start/st
 					}
 				}
 
-				// Enable timers (but don't start them)
-				if Config.Updates.Enabled {
+				if shared.Config.Updates.Enabled {
 					logger.Info("Enabling update timer...")
 					if err := sysd.Enable("dayz-update.timer"); err != nil {
 						logger.Warn("Failed to enable update timer", "error", err)
@@ -59,7 +56,7 @@ It does NOT start, stop, or restart any services. Use 'dayzctl instance start/st
 				}
 
 				logger.Info("Configuration applied successfully")
-				logger.Info("Services are NOT started/stopped/restarted. Use 'dayzctl instance start/stop/restart' to control services.")
+				logger.Info("Services are NOT started/stopped/restarted. Use 'dayzctl start/stop/restart' to control services.")
 				return nil
 			})
 		},

@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/kabroxiko/dayzctl/cmd/dayzctl/commands/shared"
 	"github.com/spf13/cobra"
 )
 
@@ -13,8 +14,8 @@ func CheckSpaceCmd() *cobra.Command {
 		Use:   "check-space",
 		Short: "Check available disk space",
 		Run: func(cmd *cobra.Command, args []string) {
-			RunCommand(func() error {
-				installDir := Config.GetInstallDir()
+			shared.RunCommand(func() error {
+				installDir := shared.Config.GetInstallDir()
 
 				execCmd := exec.Command("df", "-BG", installDir)
 				output, err := execCmd.Output()
