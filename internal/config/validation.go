@@ -7,7 +7,9 @@ func (c *ServerConfig) Validate() error {
 	if c.Steam.Username == "" {
 		return fmt.Errorf("steam.username is required")
 	}
-
+	if c.Paths.Base == "" {
+		return fmt.Errorf("paths.base is required")
+	}
 	if len(c.Instances) == 0 {
 		return fmt.Errorf("at least one instance must be configured")
 	}
