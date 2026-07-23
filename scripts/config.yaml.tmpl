@@ -17,7 +17,7 @@ paths:
 
 # Server instances (managed by root via systemd)
 instances:
-  - name: main
+  - name: dayz
     instanceId: 1
     port: 2302
     steam_query_port: 27016
@@ -28,21 +28,6 @@ instances:
     rcon:
       enabled: true
       port: 2306
-      password: rcon123
-    mods: []
-    servermods: []
-
-  - name: solo
-    instanceId: 2
-    port: 2303
-    steam_query_port: 27017
-    template: dayzOffline.chernarusplus
-    hostname: "DayZ Solo Server"
-    max_players: 30
-    enabled: true
-    rcon:
-      enabled: true
-      port: 2307
       password: rcon123
     mods: []
     servermods: []

@@ -17,7 +17,24 @@ func DefaultBaseDir() string {
 
 // DefaultConfigPath returns the default path to the config file
 func DefaultConfigPath() string {
-	return DefaultBaseDir() + "/config/server.yaml"
+	// Check if DAYZCTL_CONFIG environment variable is set
+	if v := os.Getenv("DAYZCTL_CONFIG"); v != "" {
+		return v
+	}
+	// Check /etc/dayzctl/config.yaml first (system-wide config)
+	if _, err := os.Stat("/etc/dayzctl/config.yaml"); err == nil {
+		return "/etc/dayzctl/config.yaml"
+	}
+	// Check /srv/dayz/config/server.yaml (legacy location)
+	if _, err := os.Stat("/srv/dayz/config/server.yaml"); err == nil {
+		return "/srv/dayz/config/server.yaml"
+	}
+	// Check DAYZ_HOME environment variable
+	if v := os.Getenv("DAYZ_HOME"); v != "" {
+		return v + "/config/server.yaml"
+	}
+	// Default fallback
+	return "/etc/dayzctl/config.yaml"
 }
 
 // ============================================================================
@@ -40,27 +57,20 @@ type ServerConfig struct {
 
 // Server represents server-wide settings
 type Server struct {
-	// Basic
 	Name          string `yaml:"name"`
 	Map           string `yaml:"map"`
 	MaxPlayers    int    `yaml:"max_players"`
 	Password      string `yaml:"password"`
 	PasswordAdmin string `yaml:"password_admin"`
-
-	// Network
-	SteamQueryPort int `yaml:"steam_query_port"`
-	SteamPort      int `yaml:"steam_port"`
-	ClientPort     int `yaml:"client_port"`
-
-	// Security
+	SteamQueryPort int  `yaml:"steam_query_port"`
+	SteamPort      int  `yaml:"steam_port"`
+	ClientPort     int  `yaml:"client_port"`
 	VerifySignatures     int  `yaml:"verify_signatures"`
 	ForceSameBuild       int  `yaml:"force_same_build"`
 	BattlEye             int  `yaml:"battleye"`
 	EnableWhitelist      int  `yaml:"enable_whitelist"`
 	DisableBanlist       bool `yaml:"disable_banlist"`
 	DisablePrioritylist  bool `yaml:"disable_prioritylist"`
-
-	// Gameplay
 	Disable3rdPerson              int  `yaml:"disable_3rd_person"`
 	DisableCrosshair              int  `yaml:"disable_crosshair"`
 	DisableVoN                    int  `yaml:"disable_von"`
@@ -69,22 +79,14 @@ type Server struct {
 	DisableContainerDamage        int  `yaml:"disable_container_damage"`
 	DisableRespawnDialog          int  `yaml:"disable_respawn_dialog"`
 	DisableMultiAccountMitigation bool `yaml:"disable_multi_account_mitigation"`
-
-	// Voice
 	VonCodecQuality int `yaml:"von_codec_quality"`
-
-	// Time & Weather
 	ServerTime               string  `yaml:"server_time"`
 	ServerTimePersistent     int     `yaml:"server_time_persistent"`
 	ServerTimeAcceleration   int     `yaml:"server_time_acceleration"`
 	ServerNightTimeAcceleration float64 `yaml:"server_night_time_acceleration"`
 	LightingConfig           int     `yaml:"lighting_config"`
-
-	// Login Queue
 	LoginQueueConcurrentPlayers int `yaml:"login_queue_concurrent_players"`
 	LoginQueueMaxPlayers        int `yaml:"login_queue_max_players"`
-
-	// Network Bubble
 	GuaranteedUpdates         int `yaml:"guaranteed_updates"`
 	NetworkRangeClose         int `yaml:"network_range_close"`
 	NetworkRangeNear          int `yaml:"network_range_near"`
@@ -92,25 +94,17 @@ type Server struct {
 	NetworkRangeDistantEffect int `yaml:"network_range_distant_effect"`
 	SimulatedPlayersBatch     int `yaml:"simulated_players_batch"`
 	MultithreadedReplication  int `yaml:"multithreaded_replication"`
-
-	// Ping
 	PingWarning      int `yaml:"ping_warning"`
 	PingCritical     int `yaml:"ping_critical"`
 	MaxPing          int `yaml:"max_ping"`
 	ServerFpsWarning int `yaml:"server_fps_warning"`
-
-	// Persistence
 	StorageAutoFix           int  `yaml:"storage_auto_fix"`
 	StoreHouseStateDisabled  bool `yaml:"store_house_state_disabled"`
 	LootHistory              int  `yaml:"loot_history"`
 	StorageAutoDestroyFlags  int  `yaml:"storage_auto_destroy_flags"`
 	StorageAutoDestroyInterval int `yaml:"storage_auto_destroy_interval"`
-
-	// Respawn
 	RespawnTime        int `yaml:"respawn_time"`
 	SpeedhackDetection int `yaml:"speedhack_detection"`
-
-	// Logging
 	TimeStampFormat        string `yaml:"time_stamp_format"`
 	LogAverageFps          int    `yaml:"log_average_fps"`
 	LogMemory              int    `yaml:"log_memory"`
@@ -119,16 +113,10 @@ type Server struct {
 	AdminLogPlacement      int    `yaml:"admin_log_placement"`
 	AdminLogBuildActions   int    `yaml:"admin_log_build_actions"`
 	AdminLogPlayerList     int    `yaml:"admin_log_player_list"`
-
-	// Debug
 	EnableDebugMonitor int `yaml:"enable_debug_monitor"`
 	AllowFilePatching  int `yaml:"allow_file_patching"`
-
-	// Render Distance
 	DefaultVisibility         int `yaml:"default_visibility"`
 	DefaultObjectViewDistance int `yaml:"default_object_view_distance"`
-
-	// Shot Validation
 	ShotValidation int `yaml:"shot_validation"`
 }
 
@@ -275,9 +263,9 @@ func (c *ServerConfig) GetInstanceNames() []string {
 
 // GetInstanceByName returns an instance by name
 func (c *ServerConfig) GetInstanceByName(name string) (*Instance, error) {
-	for _, inst := range c.Instances {
-		if inst.Name == name {
-			return &inst, nil
+	for i := range c.Instances {
+		if c.Instances[i].Name == name {
+			return &c.Instances[i], nil
 		}
 	}
 	return nil, fmt.Errorf("instance not found: %s", name)
