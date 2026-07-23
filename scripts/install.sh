@@ -211,6 +211,9 @@ install_dayzctl() {
     REDIRECT_URL=$(curl -fsSL -o /dev/null -w "%{url_effective}" "https://github.com/kabroxiko/dayzctl/releases/latest") || {
         error "Failed to follow redirect to latest release"
     }
+    
+    
+    
 
     if [ -z "$REDIRECT_URL" ]; then
         error "Empty redirect URL from GitHub"
