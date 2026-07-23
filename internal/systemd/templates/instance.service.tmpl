@@ -13,7 +13,13 @@ ExecStart={{ .ServerDir }}/DayZServer \
   -profiles={{ .ServerDir }}/profiles/{{ .Name }} \
   -BEpath={{ .BattlEyeDir }} \
   -mod={{ .Mods }} \
-  -servermod={{ .ServerMods }}
+  -servermod={{ .ServerMods }} \
+  -cpuCount=4 \
+  -dologs \
+  -adminlog \
+  -netLog \
+  -freezecheck \
+  -filePatching
 Restart=on-failure
 RestartSec=10
 LimitNOFILE=4096
