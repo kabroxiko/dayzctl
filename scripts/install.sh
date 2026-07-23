@@ -1,28 +1,21 @@
 #!/bin/bash
 set -euo pipefail
 
-# Debugging helper — print debug lines as normal colored install messages
-debug_log() {
-    log "[debug] $*"
-}
-
 # ============================================================================
 # Configuration
 # ============================================================================
 DAYZ_HOME="${DAYZ_HOME:-/srv/dayz}"
 STEAM_USER="${STEAM_USER:-kqkklan}"
 REINSTALL="${REINSTALL:-0}"
-DEFAULT_TEMPLATE_URL="https://raw.githubusercontent.com/kabroxiko/dayzops/main/scripts/server.yaml.tmpl"
+CONFIG_PATH="/etc/dayzctl/config.yaml"
 
-# Prompt interactively for configuration values when running in a terminal
 prompt_for_values() {
     if [ ! -t 0 ]; then
-        debug_log "Non-interactive shell; skipping interactive prompts"
         return 0
     fi
 
     log "Interactive setup — press Enter to accept the default in brackets"
-    input=""
+    local input=""
     read -r -p "Installation directory (DAYZ_HOME) [${DAYZ_HOME}]: " input
     if [ -n "${input}" ]; then
         DAYZ_HOME="$input"
@@ -33,8 +26,8 @@ prompt_for_values() {
     if [ -n "${input}" ]; then
         STEAM_USER="$input"
     fi
-
 }
+
 # ============================================================================
 # Colors for output
 # ============================================================================
@@ -94,7 +87,6 @@ detect_distro() {
 # ============================================================================
 create_structure() {
     log "creating structure in $DAYZ_HOME"
-    debug_log "mkdir -p $DAYZ_HOME {config,server,backups,workshop,state,steamcmd}"
     mkdir -p "$DAYZ_HOME" \
              "$DAYZ_HOME/config" \
              "$DAYZ_HOME/server" \
@@ -105,7 +97,7 @@ create_structure() {
 }
 
 # ============================================================================
-# Create dayz user (runs the actual server)
+# Create dayz user
 # ============================================================================
 create_user() {
     if id "dayz" &>/dev/null; then
@@ -119,7 +111,7 @@ create_user() {
 }
 
 # ============================================================================
-# Install system dependencies (only what's needed)
+# Install system dependencies
 # ============================================================================
 install_deps() {
     log "enabling i386 architecture and installing dependencies ($DISTRO_FAMILY)"
@@ -164,7 +156,7 @@ install_deps() {
 }
 
 # ============================================================================
-# Install SteamCMD (runs as dayz user)
+# Install SteamCMD
 # ============================================================================
 install_steamcmd() {
     log "installing SteamCMD in $DAYZ_HOME/steamcmd"
@@ -179,17 +171,15 @@ install_steamcmd() {
 
     cd "$DAYZ_HOME/steamcmd" || error "Failed to cd to steamcmd directory"
 
-    debug_log "running as dayz: curl -sSL https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz | tar -xz"
     runuser -u dayz -- sh -c "curl -sSL https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz | tar -xz" \
         || error "Failed to download/extract SteamCMD"
 
-    debug_log "running as dayz: $DAYZ_HOME/steamcmd/steamcmd.sh +quit"
     runuser -u dayz -- "$DAYZ_HOME/steamcmd/steamcmd.sh" +quit \
         || error "SteamCMD installation test failed"
 }
 
 # ============================================================================
-# Install dayzctl binary (runs as root only)
+# Install dayzctl binary
 # ============================================================================
 install_dayzctl() {
     log "installing dayzctl binary (latest release)"
@@ -197,14 +187,34 @@ install_dayzctl() {
     ARCH=$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/')
     OS=$(uname -s | tr '[:upper:]' '[:lower:]')
     
-    # Get version from checksums.txt filename pattern
-    # Since checksums.txt is in the release, we can get the version from the tag
-    LATEST_URL="https://github.com/kabroxiko/dayzctl/releases/latest"
-    REDIRECT_URL=$(curl -fsSL -o /dev/null -w "%{url_effective}" "$LATEST_URL")
-    VERSION=$(echo "$REDIRECT_URL" | grep -o 'v[0-9.]*$' | sed 's/^v//')
+    rm -f /usr/local/bin/dayzctl
+    
+    LOCAL_BINARY="./build/dayzctl-${OS}-${ARCH}"
+    if [ -f "$LOCAL_BINARY" ]; then
+        log "found local binary: $LOCAL_BINARY"
+        cp "$LOCAL_BINARY" /usr/local/bin/dayzctl || error "Failed to copy local binary"
+        chmod 755 /usr/local/bin/dayzctl || error "Failed to make dayzctl executable"
+        log "dayzctl installed successfully from local build"
+        return 0
+    elif [ -f "./build/dayzctl" ]; then
+        log "found local binary: ./build/dayzctl"
+        cp ./build/dayzctl /usr/local/bin/dayzctl || error "Failed to copy local binary"
+        chmod 755 /usr/local/bin/dayzctl || error "Failed to make dayzctl executable"
+        log "dayzctl installed successfully from local build"
+        return 0
+    fi
+    
+    RELEASE_URL="https://api.github.com/repos/kabroxiko/dayzctl/releases/latest"
+    RELEASE_JSON=$(curl -fsSL "$RELEASE_URL")
+    
+    if [ -z "$RELEASE_JSON" ]; then
+        error "Failed to get latest release from GitHub"
+    fi
+    
+    VERSION=$(echo "$RELEASE_JSON" | grep -o '"tag_name":"v[^"]*"' | sed 's/"tag_name":"v\([^"]*\)"/\1/')
     
     if [ -z "$VERSION" ]; then
-        error "Failed to get latest version from GitHub"
+        error "Failed to extract version from release"
     fi
     
     ASSET="dayzctl_${VERSION}_${OS}_${ARCH}.tar.gz"
@@ -214,21 +224,18 @@ install_dayzctl() {
     log "Installing dayzctl v${VERSION}"
     log "Downloading ${ASSET}..."
     
-    # Download checksums
     CHECKSUMS=$(curl -fsSL "$CHECKSUM_URL")
     
     if [ -z "$CHECKSUMS" ]; then
         error "Failed to download checksums"
     fi
     
-    # Get checksum for our asset
     EXPECTED_CHECKSUM=$(echo "$CHECKSUMS" | grep " ${ASSET}$" | awk '{print $1}')
     
     if [ -z "$EXPECTED_CHECKSUM" ]; then
         error "Checksum not found for ${ASSET}"
     fi
     
-    # Download archive
     TMP_DIR=$(mktemp -d)
     TMP_FILE="${TMP_DIR}/${ASSET}"
     
@@ -239,7 +246,6 @@ install_dayzctl() {
         error "Failed to download ${ASSET}"
     fi
     
-    # Verify checksum
     ACTUAL_CHECKSUM=$(sha256sum "$TMP_FILE" | awk '{print $1}')
     
     if [ "$ACTUAL_CHECKSUM" != "$EXPECTED_CHECKSUM" ]; then
@@ -247,14 +253,12 @@ install_dayzctl() {
         error "Checksum verification failed"
     fi
     
-    # Extract and install
     tar -xzf "$TMP_FILE" -C "$TMP_DIR"
     mv "${TMP_DIR}/dayzctl" /usr/local/bin/dayzctl
     chmod 755 /usr/local/bin/dayzctl
     
     rm -rf "$TMP_DIR"
     
-    # Verify installation
     if ! /usr/local/bin/dayzctl version > /dev/null 2>&1; then
         error "dayzctl verification failed"
     fi
@@ -263,87 +267,55 @@ install_dayzctl() {
 }
 
 # ============================================================================
-# Create default server.yaml config (always download template)
+# Create default config.yaml
 # ============================================================================
 create_config() {
-    if [ -f "$DAYZ_HOME/config/server.yaml" ] && [ "$REINSTALL" != "1" ]; then
-        log "config already exists in $DAYZ_HOME/config/server.yaml (preserved)"
+    if [ -f "$CONFIG_PATH" ] && [ "$REINSTALL" != "1" ]; then
+        log "config already exists in $CONFIG_PATH (preserved)"
         return 0
     fi
 
-    log "creating default config"
+    log "creating default config at $CONFIG_PATH"
 
-    # Try multiple template URLs
-    TEMPLATE_URLS=(
-        "https://raw.githubusercontent.com/kabroxiko/dayzctl/main/scripts/server.yaml.tmpl"
-        "https://raw.githubusercontent.com/kabroxiko/dayzops/main/scripts/server.yaml.tmpl"
-    )
+    mkdir -p /etc/dayzctl || error "Failed to create /etc/dayzctl"
 
-    TMP_TEMPLATE=""
-    for url in "${TEMPLATE_URLS[@]}"; do
-        log "Trying template URL: $url"
-        TMP_TEMPLATE=$(mktemp /tmp/server.yaml.tmpl.XXXXXX 2>/dev/null || echo "")
-        
-        if [ -z "$TMP_TEMPLATE" ]; then
-            log "Failed to create temp file, trying with mktemp without suffix..."
-            TMP_TEMPLATE=$(mktemp)
-        fi
-        
-        if [ -z "$TMP_TEMPLATE" ]; then
-            error "Failed to create temporary file"
-        fi
+    TEMPLATE_URL="https://raw.githubusercontent.com/kabroxiko/dayzctl/main/scripts/config.yaml.tmpl"
+    TMP_TEMPLATE=$(mktemp)
 
-        if command -v curl >/dev/null 2>&1; then
-            log "Using curl to download template..."
-            if curl -fsSL "$url" -o "$TMP_TEMPLATE" 2>/tmp/curl_error.log; then
-                log "Template downloaded successfully from $url"
-                break
-            else
-                log "Failed to download from $url (curl error: $(cat /tmp/curl_error.log 2>/dev/null || echo 'unknown'))"
-                rm -f "$TMP_TEMPLATE"
-                TMP_TEMPLATE=""
-            fi
-        elif command -v wget >/dev/null 2>&1; then
-            log "Using wget to download template..."
-            if wget -qO "$TMP_TEMPLATE" "$url" 2>/tmp/wget_error.log; then
-                log "Template downloaded successfully from $url"
-                break
-            else
-                log "Failed to download from $url (wget error: $(cat /tmp/wget_error.log 2>/dev/null || echo 'unknown'))"
-                rm -f "$TMP_TEMPLATE"
-                TMP_TEMPLATE=""
-            fi
-        else
-            error "Neither curl nor wget available to download template"
-        fi
-    done
-
-    if [ -z "$TMP_TEMPLATE" ] || [ ! -f "$TMP_TEMPLATE" ]; then
-        error "Failed to download template from all sources. Please check network connectivity and URLs."
+    if [ -z "$TMP_TEMPLATE" ]; then
+        error "Failed to create temporary file"
     fi
 
-    log "Template downloaded successfully, rendering config..."
-    debug_log "Template file: $TMP_TEMPLATE"
-    debug_log "DAYZ_HOME: $DAYZ_HOME"
-    debug_log "STEAM_USER: $STEAM_USER"
+    if command -v curl >/dev/null 2>&1; then
+        if ! curl -fsSL "$TEMPLATE_URL" -o "$TMP_TEMPLATE"; then
+            rm -f "$TMP_TEMPLATE"
+            error "Failed to download template from $TEMPLATE_URL"
+        fi
+    elif command -v wget >/dev/null 2>&1; then
+        if ! wget -qO "$TMP_TEMPLATE" "$TEMPLATE_URL"; then
+            rm -f "$TMP_TEMPLATE"
+            error "Failed to download template from $TEMPLATE_URL"
+        fi
+    else
+        rm -f "$TMP_TEMPLATE"
+        error "Neither curl nor wget available to download template"
+    fi
 
-    sed "s|%%DAYZ_HOME%%|$DAYZ_HOME|g; s|%%STEAM_USER%%|$STEAM_USER|g" "$TMP_TEMPLATE" > "$DAYZ_HOME/config/server.yaml" || {
+    log "Template downloaded successfully"
+
+    sed "s|%%DAYZ_HOME%%|$DAYZ_HOME|g; s|%%STEAM_USER%%|$STEAM_USER|g" "$TMP_TEMPLATE" > "$CONFIG_PATH" || {
         rm -f "$TMP_TEMPLATE"
         error "Failed to render config template"
     }
 
-    rm -f "$TMP_TEMPLATE" || warn "Failed to remove temporary template"
+    rm -f "$TMP_TEMPLATE"
 
-    chown -R dayz:dayz "$DAYZ_HOME/config" || error "Failed to set ownership on config"
-    log "config created at $DAYZ_HOME/config/server.yaml"
-    
-    # Display config content for debugging
-    debug_log "Config content:"
-    debug_log "$(cat $DAYZ_HOME/config/server.yaml 2>/dev/null | head -20 || echo 'Unable to read config')"
+    chmod 644 "$CONFIG_PATH" || error "Failed to set permissions on config"
+    log "config created at $CONFIG_PATH"
 }
 
 # ============================================================================
-# Set ownership of all files
+# Set ownership
 # ============================================================================
 set_ownership() {
     log "adjusting ownership of $DAYZ_HOME to dayz:dayz"
@@ -385,12 +357,13 @@ main() {
     log ""
     log "=== Installation Complete ==="
     log ""
-    log "📁 Configuration: $DAYZ_HOME/config/server.yaml"
+    log "📁 Configuration: $CONFIG_PATH"
+    log "📁 Server files: $DAYZ_HOME/server"
     log ""
     log "🔧 dayzctl commands (run as root):"
-    log "  dayzctl apply              # Generate systemd units (does NOT restart services)"
+    log "  dayzctl apply              # Generate systemd units"
     log "  dayzctl status             # Check server status"
-    log "  dayzctl update             # Update server (calls steamcmd as dayz)"
+    log "  dayzctl update             # Update server"
     log "  dayzctl instance start main  # Start main instance"
     log "  dayzctl instance stop main   # Stop main instance"
     log "  dayzctl mods list          # List mods"
