@@ -3,33 +3,22 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"gopkg.in/yaml.v3"
 )
 
-// DefaultBaseDir is the default installation base directory
-func DefaultBaseDir() string {
-	if v := os.Getenv("DAYZ_HOME"); v != "" {
-		return v
-	}
-	return "/srv/dayz"
-}
-
 // DefaultConfigPath returns the default path to the config file
 func DefaultConfigPath() string {
-	// Check if DAYZCTL_CONFIG environment variable is set
 	if v := os.Getenv("DAYZCTL_CONFIG"); v != "" {
 		return v
 	}
-	// Check /etc/dayzctl/config.yaml first (system-wide config)
 	if _, err := os.Stat("/etc/dayzctl/config.yaml"); err == nil {
 		return "/etc/dayzctl/config.yaml"
 	}
-	// Check DAYZ_HOME environment variable
 	if v := os.Getenv("DAYZ_HOME"); v != "" {
 		return v + "/config/server.yaml"
 	}
-	// Default fallback
 	return "/etc/dayzctl/config.yaml"
 }
 
@@ -53,9 +42,7 @@ type ServerConfig struct {
 
 // Server represents server-wide settings
 type Server struct {
-	Name          string `yaml:"name"`
-	Map           string `yaml:"map"`
-	MaxPlayers    int    `yaml:"max_players"`
+	MaxPlayers    int  `yaml:"max_players"`
 	Password      string `yaml:"password"`
 	PasswordAdmin string `yaml:"password_admin"`
 	SteamQueryPort int  `yaml:"steam_query_port"`
@@ -123,13 +110,14 @@ type Steam struct {
 
 // Paths represents directory paths
 type Paths struct {
-	InstallDir  string `yaml:"install_dir"`
-	WorkshopDir string `yaml:"workshop_dir"`
-	ModsDir     string `yaml:"mods_dir"`
-	BackupsDir  string `yaml:"backups_dir"`
-	StateDir    string `yaml:"state_dir"`
-	StorageDir  string `yaml:"storage_dir"`
-	SteamcmdBin string `yaml:"steamcmd_bin"`
+	Base        string `yaml:"base"`
+	InstallDir  string `yaml:"install_dir,omitempty"`
+	WorkshopDir string `yaml:"workshop_dir,omitempty"`
+	ModsDir     string `yaml:"mods_dir,omitempty"`
+	BackupsDir  string `yaml:"backups_dir,omitempty"`
+	StateDir    string `yaml:"state_dir,omitempty"`
+	StorageDir  string `yaml:"storage_dir,omitempty"`
+	SteamcmdBin string `yaml:"steamcmd_bin,omitempty"`
 }
 
 // Instance represents a server instance
@@ -140,6 +128,7 @@ type Instance struct {
 	SteamQueryPort int      `yaml:"steam_query_port"`
 	Template       string   `yaml:"template"`
 	Hostname       string   `yaml:"hostname"`
+	Map            string   `yaml:"map"`
 	MaxPlayers     int      `yaml:"max_players"`
 	Enabled        bool     `yaml:"enabled"`
 	RCON           RCON     `yaml:"rcon"`
@@ -153,7 +142,7 @@ type ModRef struct {
 	Name string `yaml:"name"`
 }
 
-// RCON represents RCON configuration from YAML
+// RCON represents RCON configuration
 type RCON struct {
 	Enabled  bool   `yaml:"enabled"`
 	Port     int    `yaml:"port"`
@@ -201,38 +190,72 @@ type State struct {
 // HELPER METHODS
 // ============================================================================
 
+// GetBaseDir returns the base directory from paths
+func (c *ServerConfig) GetBaseDir() string {
+	if c.Paths.Base != "" {
+		return c.Paths.Base
+	}
+	return "/srv/dayz"
+}
+
+// resolvePath resolves a path relative to base directory
+func (c *ServerConfig) resolvePath(path string, defaultSubdir string) string {
+	if path != "" {
+		if filepath.IsAbs(path) {
+			return path
+		}
+		return filepath.Join(c.GetBaseDir(), path)
+	}
+	return filepath.Join(c.GetBaseDir(), defaultSubdir)
+}
+
 // GetSteamUser returns the Steam username
 func (c *ServerConfig) GetSteamUser() string {
 	return c.Steam.Username
 }
 
-// GetInstallDir returns the installation directory with default fallback
+// GetInstallDir returns the installation directory
 func (c *ServerConfig) GetInstallDir() string {
 	if c.Paths.InstallDir != "" {
-		return c.Paths.InstallDir
+		if filepath.IsAbs(c.Paths.InstallDir) {
+			return c.Paths.InstallDir
+		}
+		return filepath.Join(c.GetBaseDir(), c.Paths.InstallDir)
 	}
-	return DefaultBaseDir() + "/server"
+	return filepath.Join(c.GetBaseDir(), "server")
 }
 
-// GetBackupDir returns the backup directory with default fallback
+// GetBackupDir returns the backup directory
 func (c *ServerConfig) GetBackupDir() string {
 	if c.Paths.BackupsDir != "" {
-		return c.Paths.BackupsDir
+		if filepath.IsAbs(c.Paths.BackupsDir) {
+			return c.Paths.BackupsDir
+		}
+		return filepath.Join(c.GetBaseDir(), c.Paths.BackupsDir)
 	}
-	return DefaultBaseDir() + "/backups"
+	return filepath.Join(c.GetBaseDir(), "backups")
 }
 
-// GetWorkshopDir returns the workshop directory with default fallback
+// GetWorkshopDir returns the workshop directory
 func (c *ServerConfig) GetWorkshopDir() string {
 	if c.Paths.WorkshopDir != "" {
-		return c.Paths.WorkshopDir
+		if filepath.IsAbs(c.Paths.WorkshopDir) {
+			return c.Paths.WorkshopDir
+		}
+		return filepath.Join(c.GetBaseDir(), c.Paths.WorkshopDir)
 	}
-	return DefaultBaseDir() + "/workshop"
+	return filepath.Join(c.GetBaseDir(), "workshop")
 }
 
-// GetSteamcmdBin returns the configured steamcmd binary path (may be empty).
+// GetSteamcmdBin returns the steamcmd binary path
 func (c *ServerConfig) GetSteamcmdBin() string {
-	return c.Paths.SteamcmdBin
+	if c.Paths.SteamcmdBin != "" {
+		if filepath.IsAbs(c.Paths.SteamcmdBin) {
+			return c.Paths.SteamcmdBin
+		}
+		return filepath.Join(c.GetBaseDir(), c.Paths.SteamcmdBin)
+	}
+	return filepath.Join(c.GetBaseDir(), "steamcmd/steamcmd.sh")
 }
 
 // GetEnabledInstances returns only enabled instances
@@ -275,6 +298,158 @@ func (c *ServerConfig) HasInstance(name string) bool {
 		}
 	}
 	return false
+}
+
+// ============================================================================
+// DEFAULTS
+// ============================================================================
+
+// SetDefaults sets default values for the configuration
+func (c *ServerConfig) SetDefaults() {
+	if c.Paths.Base == "" {
+		c.Paths.Base = "/srv/dayz"
+	}
+	
+	if c.Server.MaxPlayers == 0 {
+		c.Server.MaxPlayers = 60
+	}
+	if c.Server.SteamQueryPort == 0 {
+		c.Server.SteamQueryPort = 27016
+	}
+	if c.Server.SteamPort == 0 {
+		c.Server.SteamPort = 2304
+	}
+	if c.Server.ClientPort == 0 {
+		c.Server.ClientPort = 2304
+	}
+	if c.Server.VerifySignatures == 0 {
+		c.Server.VerifySignatures = 2
+	}
+	if c.Server.ForceSameBuild == 0 {
+		c.Server.ForceSameBuild = 1
+	}
+	if c.Server.BattlEye == 0 {
+		c.Server.BattlEye = 1
+	}
+	if c.Server.VonCodecQuality == 0 {
+		c.Server.VonCodecQuality = 20
+	}
+	if c.Server.ServerTime == "" {
+		c.Server.ServerTime = "SystemTime"
+	}
+	if c.Server.ServerTimePersistent == 0 {
+		c.Server.ServerTimePersistent = 1
+	}
+	if c.Server.ServerTimeAcceleration == 0 {
+		c.Server.ServerTimeAcceleration = 12
+	}
+	if c.Server.ServerNightTimeAcceleration == 0 {
+		c.Server.ServerNightTimeAcceleration = 1
+	}
+	if c.Server.LoginQueueConcurrentPlayers == 0 {
+		c.Server.LoginQueueConcurrentPlayers = 5
+	}
+	if c.Server.LoginQueueMaxPlayers == 0 {
+		c.Server.LoginQueueMaxPlayers = 500
+	}
+	if c.Server.GuaranteedUpdates == 0 {
+		c.Server.GuaranteedUpdates = 1
+	}
+	if c.Server.NetworkRangeClose == 0 {
+		c.Server.NetworkRangeClose = 20
+	}
+	if c.Server.NetworkRangeNear == 0 {
+		c.Server.NetworkRangeNear = 150
+	}
+	if c.Server.NetworkRangeFar == 0 {
+		c.Server.NetworkRangeFar = 1000
+	}
+	if c.Server.NetworkRangeDistantEffect == 0 {
+		c.Server.NetworkRangeDistantEffect = 4000
+	}
+	if c.Server.SimulatedPlayersBatch == 0 {
+		c.Server.SimulatedPlayersBatch = 20
+	}
+	if c.Server.MultithreadedReplication == 0 {
+		c.Server.MultithreadedReplication = 1
+	}
+	if c.Server.PingWarning == 0 {
+		c.Server.PingWarning = 200
+	}
+	if c.Server.PingCritical == 0 {
+		c.Server.PingCritical = 250
+	}
+	if c.Server.MaxPing == 0 {
+		c.Server.MaxPing = 300
+	}
+	if c.Server.ServerFpsWarning == 0 {
+		c.Server.ServerFpsWarning = 15
+	}
+	if c.Server.StorageAutoFix == 0 {
+		c.Server.StorageAutoFix = 1
+	}
+	if c.Server.LootHistory == 0 {
+		c.Server.LootHistory = 1
+	}
+	if c.Server.RespawnTime == 0 {
+		c.Server.RespawnTime = 5
+	}
+	if c.Server.SpeedhackDetection == 0 {
+		c.Server.SpeedhackDetection = 1
+	}
+	if c.Server.TimeStampFormat == "" {
+		c.Server.TimeStampFormat = "Short"
+	}
+	if c.Server.LogAverageFps == 0 {
+		c.Server.LogAverageFps = 1
+	}
+	if c.Server.LogMemory == 0 {
+		c.Server.LogMemory = 1
+	}
+	if c.Server.LogPlayers == 0 {
+		c.Server.LogPlayers = 1
+	}
+	if c.Server.DefaultVisibility == 0 {
+		c.Server.DefaultVisibility = 1375
+	}
+	if c.Server.DefaultObjectViewDistance == 0 {
+		c.Server.DefaultObjectViewDistance = 1375
+	}
+	if c.Server.ShotValidation == 0 {
+		c.Server.ShotValidation = 1
+	}
+}
+
+// Validate checks if the configuration is valid
+func (c *ServerConfig) Validate() error {
+	if c.Steam.Username == "" {
+		return fmt.Errorf("steam.username is required")
+	}
+	if c.Paths.Base == "" {
+		return fmt.Errorf("paths.base is required")
+	}
+	if len(c.Instances) == 0 {
+		return fmt.Errorf("at least one instance must be configured")
+	}
+
+	for _, inst := range c.Instances {
+		if inst.Name == "" {
+			return fmt.Errorf("instance name is required")
+		}
+		if inst.Port == 0 {
+			return fmt.Errorf("instance %s: port is required", inst.Name)
+		}
+		if inst.Enabled && inst.RCON.Enabled {
+			if inst.RCON.Port == 0 {
+				return fmt.Errorf("instance %s: RCON port is required when RCON is enabled", inst.Name)
+			}
+			if inst.RCON.Password == "" {
+				return fmt.Errorf("instance %s: RCON password is required when RCON is enabled", inst.Name)
+			}
+		}
+	}
+
+	return nil
 }
 
 // ============================================================================

@@ -1,21 +1,12 @@
 ## DayZ Server Configuration Template
-# This config is managed by dayzctl (root tool)
-# The dayz user only runs steamcmd, not dayzctl
 
 steam:
   username: "%%STEAM_USER%%"
 
-# Directory paths
 paths:
-  install_dir: "%%DAYZ_HOME%%/server"
-  workshop_dir: "%%DAYZ_HOME%%/workshop"
-  mods_dir: "%%DAYZ_HOME%%/server"
-  backups_dir: "%%DAYZ_HOME%%/backups"
-  state_dir: "%%DAYZ_HOME%%/state"
-  storage_dir: null
-  steamcmd_bin: "%%DAYZ_HOME%%/steamcmd/steamcmd.sh"
+  base: "/srv/dayz"
 
-# Server instances (managed by root via systemd)
+# Server instances
 instances:
   - name: dayz
     instanceId: 1
@@ -23,6 +14,7 @@ instances:
     steam_query_port: 27016
     template: dayzOffline.chernarusplus
     hostname: "DayZ Server"
+    map: "chernarusplus"
     max_players: 60
     enabled: true
     rcon:
@@ -32,14 +24,14 @@ instances:
     mods: []
     servermods: []
 
-# Backup settings (managed by root)
+# Backup settings
 backup:
   enabled: true
   retention_days: 14
   keep_daily: 7
   keep_weekly: 4
 
-# Update settings (root runs dayzctl update, which calls steamcmd as dayz)
+# Update settings
 updates:
   enabled: true
   schedule: "04:00"
@@ -48,3 +40,8 @@ updates:
 healthcheck:
   enabled: true
   startup_timeout: 300
+
+# Server-wide settings
+server:
+  max_players: 60
+  battleye: 1
