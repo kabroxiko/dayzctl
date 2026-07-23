@@ -32,9 +32,6 @@ archives:
   - id: binary
     formats: [tar.gz]
     name_template: "{{ .Binary }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    files:
-      - src: "{{ .Path }}"
-        dst: "{{ .Binary }}"
 
 release:
   github:
