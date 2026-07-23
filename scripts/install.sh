@@ -192,6 +192,9 @@ install_dayzctl() {
     log "dayzctl v${VERSION} installed successfully"
 }
 
+
+
+
 # ============================================================================
 # Install SteamCMD (runs as dayz user)
 # ============================================================================
