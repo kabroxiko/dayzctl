@@ -25,10 +25,6 @@ func DefaultConfigPath() string {
 	if _, err := os.Stat("/etc/dayzctl/config.yaml"); err == nil {
 		return "/etc/dayzctl/config.yaml"
 	}
-	// Check /srv/dayz/config/server.yaml (legacy location)
-	if _, err := os.Stat("/srv/dayz/config/server.yaml"); err == nil {
-		return "/srv/dayz/config/server.yaml"
-	}
 	// Check DAYZ_HOME environment variable
 	if v := os.Getenv("DAYZ_HOME"); v != "" {
 		return v + "/config/server.yaml"
