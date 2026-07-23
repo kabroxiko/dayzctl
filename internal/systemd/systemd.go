@@ -101,7 +101,7 @@ type InstanceData struct {
 	ServerMods  string
 }
 
-// formatModsForSystemd formatea los mods para systemd con la ruta mods/
+// formatModsForSystemd formats mods for systemd with the path
 func formatModsForSystemd(modRefs []config.ModRef) string {
 	if len(modRefs) == 0 {
 		return ""
@@ -113,14 +113,10 @@ func formatModsForSystemd(modRefs []config.ModRef) string {
 			name = mod.ID
 		}
 		name = strings.TrimPrefix(name, "@")
-		// Convertir a minúsculas (como el script)
 		name = strings.ToLower(name)
-		// Reemplazar espacios con guiones bajos
 		name = strings.ReplaceAll(name, " ", "_")
-		// Especificar la ruta completa: mods/@nombre
 		prefixed[i] = "mods/@" + name
 	}
-	// Formato: "-mod=\"mods/@mod1;mods/@mod2\""
 	return "\"" + strings.Join(prefixed, ";") + "\""
 }
 
