@@ -12,7 +12,7 @@ import (
 	"github.com/kabroxiko/dayzctl/internal/utils"
 )
 
-// GenerateBattlEyeConfig generates BEServer.cfg for all instances
+// GenerateBattlEyeConfig generates beserver_x64.cfg for all instances
 func GenerateBattlEyeConfig(cfg *config.ServerConfig, tmplContent string) error {
 	tmpl, err := template.New("BEServer").Parse(tmplContent)
 	if err != nil {
@@ -49,21 +49,14 @@ func generateInstanceBattlEye(installDir string, instance config.Instance, data 
 	}
 	content := buf.Bytes()
 
-	// Write BEServer.cfg (Linux primary - case sensitive!)
-	beserverPath := filepath.Join(beDir, "BEServer.cfg")
+	// Write beserver_x64.cfg (lowercase - used by DayZServer with -BEpath)
+	beserverPath := filepath.Join(beDir, "beserver_x64.cfg")
 	if err := os.WriteFile(beserverPath, content, 0644); err != nil {
-		return fmt.Errorf("failed to write BEServer.cfg: %w", err)
-	}
-	logger.Debug("Wrote BEServer.cfg", "path", beserverPath)
-
-	// Write beserver_x64.cfg (for compatibility)
-	beserverLowerPath := filepath.Join(beDir, "beserver_x64.cfg")
-	if err := os.WriteFile(beserverLowerPath, content, 0644); err != nil {
 		return fmt.Errorf("failed to write beserver_x64.cfg: %w", err)
 	}
-	logger.Debug("Wrote beserver_x64.cfg", "path", beserverLowerPath)
+	logger.Debug("Wrote beserver_x64.cfg", "path", beserverPath)
 
-	// Create symlink for .so file (beserver_x64.so - lowercase!)
+	// Create symlink for .so file (beserver_x64.so - lowercase)
 	linkPath := filepath.Join(beDir, "beserver_x64.so")
 
 	// Remove existing file/link if it exists
