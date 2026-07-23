@@ -214,6 +214,8 @@ install_dayzctl() {
     
     
     
+    
+    
 
     if [ -z "$REDIRECT_URL" ]; then
         error "Empty redirect URL from GitHub"
