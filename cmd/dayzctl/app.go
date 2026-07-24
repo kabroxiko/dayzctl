@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/kabroxiko/dayzctl/cmd/dayzctl/commands"
 	"github.com/kabroxiko/dayzctl/cmd/dayzctl/commands/rcon"
 	"github.com/kabroxiko/dayzctl/cmd/dayzctl/commands/shared"
 	"github.com/kabroxiko/dayzctl/internal/config"
@@ -37,22 +38,24 @@ func NewApp() *cli.App {
 				Name:      "rcon",
 				Usage:     "RCON commands for an instance",
 				ArgsUsage: "<instance> <command>",
-				Subcommands: []*cli.Command{
-					{
-						Name:  "players",
-						Usage: "List players on an instance",
-						Action: func(c *cli.Context) error {
-							inst := c.Args().Get(0)
-							if inst == "" {
-								return cli.Exit("instance name required", 1)
-							}
-							return rcon.PlayersAction(inst, c.Args().Tail())
-						},
-					},
-				},
 				Action: func(c *cli.Context) error {
-					// If no subcommand provided, show help
-					return cli.ShowAppHelp(c)
+					// Preserve legacy UX: accept `rcon <instance> <command>`
+					inst := c.Args().Get(0)
+					if inst == "" {
+						return cli.ShowCommandHelp(c, "rcon")
+					}
+					sub := c.Args().Get(1)
+					if sub == "" {
+						return cli.ShowCommandHelp(c, "rcon")
+					}
+
+					switch sub {
+					case "players":
+						return rcon.PlayersAction(inst, c.Args().Tail())
+					default:
+						// Forward unknown subcommands to Cobra-based handlers for now
+						return commands.ExecuteWithArgs(os.Args[1:])
+					}
 				},
 			},
 		},
