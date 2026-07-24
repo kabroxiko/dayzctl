@@ -36,6 +36,9 @@ func PlayersCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
+				if err := isInstanceRunning(instance.Name); err != nil {
+					return err
+				}
 				if !instance.RCON.Enabled {
 					return fmt.Errorf("RCON is not enabled for instance: %s", instance.Name)
 				}
@@ -75,6 +78,9 @@ func PlayersAction(inst string, args []string) error {
 
 	instance, err := shared.GetInstance(inst)
 	if err != nil {
+		return err
+	}
+	if err := isInstanceRunning(instance.Name); err != nil {
 		return err
 	}
 	if !instance.RCON.Enabled {

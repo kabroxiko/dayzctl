@@ -37,6 +37,9 @@ func SendCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
+				if err := isInstanceRunning(instance.Name); err != nil {
+					return err
+				}
 				if !instance.RCON.Enabled {
 					return fmt.Errorf("RCON is not enabled for instance: %s", instance.Name)
 				}
@@ -53,4 +56,32 @@ func SendCmd() *cobra.Command {
 			})
 		},
 	}
+}
+
+// SendAction sends a raw RCON command to the named instance.
+// args are the arguments following the instance (e.g., the command to send).
+func SendAction(inst string, args []string) error {
+	if inst == "" {
+		return fmt.Errorf("instance name required. Usage: dayzctl rcon <instance> send <command>")
+	}
+	instance, err := shared.GetInstance(inst)
+	if err != nil {
+		return err
+	}
+	if err := isInstanceRunning(instance.Name); err != nil {
+		return err
+	}
+	if !instance.RCON.Enabled {
+		return fmt.Errorf("RCON is not enabled for instance: %s", instance.Name)
+	}
+
+	client := rcon.New(instance.RCON.Port, instance.RCON.Password)
+	response, err := client.Send(strings.Join(args, " "))
+	if err != nil {
+		return err
+	}
+	if response != "" {
+		fmt.Println(response)
+	}
+	return nil
 }

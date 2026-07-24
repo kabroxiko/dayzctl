@@ -1,10 +1,12 @@
 package rcon
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/kabroxiko/dayzctl/internal/logger"
 
+	"github.com/kabroxiko/dayzctl/internal/systemd"
 	"github.com/spf13/cobra"
 )
 
@@ -70,4 +72,20 @@ Examples:
 	)
 
 	return rconCmd
+}
+
+// isInstanceRunning checks systemd for the running instance and returns an error if it's not active.
+func isInstanceRunning(name string) error {
+	s := systemd.New()
+	running, err := s.ListRunningInstances()
+	if err != nil {
+		// If we can't determine running instances, return a descriptive error
+		return fmt.Errorf("failed to determine instance state: %w", err)
+	}
+	for _, n := range running {
+		if n == name {
+			return nil
+		}
+	}
+	return fmt.Errorf("instance is not running: %s", name)
 }
