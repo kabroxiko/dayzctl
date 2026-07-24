@@ -50,7 +50,7 @@ func (s *SteamCmd) runSteamCmd(args ...string) error {
 	}
 	cmdStr := fmt.Sprintf("%s %s", s.SteamCmdPath, strings.Join(args, " "))
 	logger.Debug("Executing steamcmd", "cmd", cmdStr, "user", s.User, "installDir", s.InstallDir)
-	
+
 	cmd := exec.Command("runuser", "-u", "dayz", "--", "sh", "-c", cmdStr)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -68,7 +68,7 @@ func (s *SteamCmd) runSteamCmdWithOutput(args ...string) (string, error) {
 	}
 	cmdStr := fmt.Sprintf("%s %s", s.SteamCmdPath, strings.Join(args, " "))
 	logger.Debug("Executing steamcmd (with output)", "cmd", cmdStr, "user", s.User, "installDir", s.InstallDir)
-	
+
 	cmd := exec.Command("runuser", "-u", "dayz", "--", "sh", "-c", cmdStr)
 	output, err := cmd.CombinedOutput()
 	outStr := string(output)
@@ -121,7 +121,7 @@ func (s *SteamCmd) GetBuildID() (string, error) {
 func (s *SteamCmd) getCurrentLocalBuildID() (string, error) {
 	appManifestPath := filepath.Join(s.InstallDir, "steamapps", "appmanifest_223350.acf")
 	logger.Debug("Checking local build ID", "path", appManifestPath)
-	
+
 	if _, err := os.Stat(appManifestPath); err == nil {
 		data, err := os.ReadFile(appManifestPath)
 		if err == nil {
@@ -140,7 +140,7 @@ func (s *SteamCmd) getCurrentLocalBuildID() (string, error) {
 		s.clearCache()
 		return "", nil
 	}
-	
+
 	return "", nil
 }
 
@@ -157,7 +157,7 @@ func (s *SteamCmd) clearCache() {
 // NeedsUpdate checks if the server needs an update
 func (s *SteamCmd) NeedsUpdate() (bool, error) {
 	logger.Info("Checking for updates...")
-	
+
 	latestBuildID, err := s.GetBuildID()
 	if err != nil {
 		if errors.Is(err, ErrRateLimited) {
@@ -165,13 +165,13 @@ func (s *SteamCmd) NeedsUpdate() (bool, error) {
 		}
 		return false, err
 	}
-	
+
 	localBuildID, err := s.getCurrentLocalBuildID()
 	if err != nil || localBuildID == "" {
 		logger.Warn("Could not determine local build ID, assuming update needed")
 		return true, nil
 	}
-	
+
 	logger.Debug("Comparing builds", "local", localBuildID, "latest", latestBuildID)
 	needsUpdate := localBuildID != latestBuildID
 	logger.Info("Update status", "needs_update", needsUpdate, "local_build", localBuildID, "latest_build", latestBuildID)
@@ -195,12 +195,12 @@ func (s *SteamCmd) Update() error {
 		"+app_update", "223350", "validate",
 		"+quit",
 	)
-	
+
 	s.lastAttempt = time.Now()
 	if err != nil {
 		return fmt.Errorf("update failed: %w", err)
 	}
-	
+
 	logger.Info("Server update completed successfully")
 	return nil
 }
@@ -270,7 +270,7 @@ func (s *SteamCmd) linkMod(modID string) error {
 	}
 
 	targetPath := filepath.Join(s.WorkshopDir, modID)
-	
+
 	if _, err := os.Lstat(targetPath); err == nil {
 		if err := os.Remove(targetPath); err != nil {
 			return fmt.Errorf("failed to remove existing symlink: %w", err)
@@ -294,7 +294,7 @@ func (s *SteamCmd) linkMod(modID string) error {
 func (s *SteamCmd) InteractiveLogin() error {
 	cmdStr := fmt.Sprintf("%s +login %s +quit", s.SteamCmdPath, s.User)
 	logger.Info("Starting interactive Steam login", "cmd", cmdStr, "user", s.User)
-	
+
 	cmd := exec.Command(
 		"runuser", "-u", "dayz", "--",
 		"sh", "-c", cmdStr,

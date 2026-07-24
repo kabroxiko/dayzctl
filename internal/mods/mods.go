@@ -72,22 +72,22 @@ func (m *Manager) getModName(modPath string) string {
 	if _, err := os.Stat(metaPath); err == nil {
 		return m.parseMetaFile(metaPath)
 	}
-	
+
 	metaPath = filepath.Join(modPath, "meta.hpp")
 	if _, err := os.Stat(metaPath); err == nil {
 		return m.parseMetaFile(metaPath)
 	}
-	
+
 	metaPath = filepath.Join(modPath, "mod.cpp")
 	if _, err := os.Stat(metaPath); err == nil {
 		return m.parseMetaFile(metaPath)
 	}
-	
+
 	metaPath = filepath.Join(modPath, "config.cpp")
 	if _, err := os.Stat(metaPath); err == nil {
 		return m.parseMetaFile(metaPath)
 	}
-	
+
 	return ""
 }
 
@@ -97,15 +97,15 @@ func (m *Manager) parseMetaFile(filePath string) string {
 	if err != nil {
 		return ""
 	}
-	
+
 	content := string(data)
-	
+
 	patterns := []string{
 		`name\s*=\s*"([^"]+)"`,
 		`name\s*=\s*'([^']+)'`,
 		`name\s*=\s*([^;]+)`,
 	}
-	
+
 	for _, pattern := range patterns {
 		re := regexp.MustCompile(pattern)
 		matches := re.FindStringSubmatch(content)
@@ -119,7 +119,7 @@ func (m *Manager) parseMetaFile(filePath string) string {
 			}
 		}
 	}
-	
+
 	return ""
 }
 
@@ -162,9 +162,9 @@ func (m *Manager) SyncMods(modRefs []config.ModRef, serverModRefs []config.ModRe
 // syncMod creates a symlink
 func (m *Manager) syncMod(modRef config.ModRef, isServerMod bool) error {
 	srcPath := filepath.Join(m.workshopDir, modRef.ID)
-	
+
 	linkName := m.getSymlinkName(modRef)
-	
+
 	destDir := filepath.Join(m.installDir, "mods")
 	if isServerMod {
 		destDir = filepath.Join(m.installDir, "servermods")
@@ -199,7 +199,7 @@ func (m *Manager) syncMod(modRef config.ModRef, isServerMod bool) error {
 // RemoveMod removes a mod symlink
 func (m *Manager) RemoveMod(modRef config.ModRef, isServerMod bool) error {
 	linkName := m.getSymlinkName(modRef)
-	
+
 	destDir := filepath.Join(m.installDir, "mods")
 	if isServerMod {
 		destDir = filepath.Join(m.installDir, "servermods")
@@ -226,7 +226,7 @@ func (m *Manager) RemoveMod(modRef config.ModRef, isServerMod bool) error {
 // GetModPath returns the path to a mod
 func (m *Manager) GetModPath(modRef config.ModRef, isServerMod bool) string {
 	linkName := m.getSymlinkName(modRef)
-	
+
 	if isServerMod {
 		return filepath.Join(m.installDir, "servermods", linkName)
 	}
@@ -236,16 +236,16 @@ func (m *Manager) GetModPath(modRef config.ModRef, isServerMod bool) string {
 // GetModInfo returns the mod info for a given ID
 func (m *Manager) GetModInfo(modID string) (Mod, error) {
 	modPath := filepath.Join(m.workshopDir, modID)
-	
+
 	if _, err := os.Stat(modPath); err != nil {
 		return Mod{}, fmt.Errorf("mod %s not found: %w", modID, err)
 	}
-	
+
 	name := m.getModName(modPath)
 	if name == "" {
 		name = modID
 	}
-	
+
 	return Mod{
 		ID:   modID,
 		Name: name,

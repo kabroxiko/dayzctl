@@ -21,7 +21,7 @@ Use 'all' to restart all running instances. 'all' is a reserved keyword and cann
 				if err != nil {
 					return err
 				}
-				
+
 				sysd := systemd.New()
 				for _, instance := range instances {
 					if err := sysd.Restart("dayz@" + instance.Name); err != nil {

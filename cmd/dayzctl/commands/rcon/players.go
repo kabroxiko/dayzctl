@@ -64,3 +64,41 @@ func PlayersCmd() *cobra.Command {
 		},
 	}
 }
+
+// PlayersAction performs the players listing for the given instance name.
+// args are any remaining arguments (not used currently).
+func PlayersAction(inst string, args []string) error {
+	logger.Debug("PlayersAction run", "inst", inst, "args", args)
+	if inst == "" {
+		return fmt.Errorf("instance name required")
+	}
+
+	instance, err := shared.GetInstance(inst)
+	if err != nil {
+		return err
+	}
+	if !instance.RCON.Enabled {
+		return fmt.Errorf("RCON is not enabled for instance: %s", instance.Name)
+	}
+
+	client := rcon.New(instance.RCON.Port, instance.RCON.Password)
+	players, err := client.Players()
+	if err != nil {
+		return err
+	}
+
+	if len(players) == 0 {
+		fmt.Println("No players online")
+		return nil
+	}
+
+	fmt.Printf("\n=== Players on %s (%d total) ===\n", instance.Name, len(players))
+	fmt.Printf("%-4s %-20s %-6s %-8s %-34s %s\n", "ID", "IP", "Port", "Ping", "GUID", "Name")
+	fmt.Println(strings.Repeat("-", 80))
+	for _, p := range players {
+		fmt.Printf("%-4d %-20s %-6s %-8s %-34s %s\n",
+			p.ID, p.IP, p.Port, p.Ping, p.GUID, p.Name)
+	}
+	fmt.Println()
+	return nil
+}

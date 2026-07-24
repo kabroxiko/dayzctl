@@ -21,7 +21,7 @@ Use 'all' to start all enabled instances. 'all' is a reserved keyword and cannot
 				if err != nil {
 					return err
 				}
-				
+
 				sysd := systemd.New()
 				for _, instance := range instances {
 					if err := sysd.Start("dayz@" + instance.Name); err != nil {

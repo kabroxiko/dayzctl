@@ -21,7 +21,7 @@ Use 'all' to stop all running instances. 'all' is a reserved keyword and cannot 
 				if err != nil {
 					return err
 				}
-				
+
 				sysd := systemd.New()
 				for _, instance := range instances {
 					if err := sysd.Stop("dayz@" + instance.Name); err != nil {
