@@ -390,15 +390,20 @@ main() {
     set_ownership
 
     log "Applying configuration..."
-    if ! /usr/local/bin/dayzctl apply; then
-        error "dayzctl apply failed - check the error above"
-    fi
+    # Capture and print output on failure so callers see the underlying error
+    APPLY_OUT=$(/usr/local/bin/dayzctl apply 2>&1) || {
+        echo "$APPLY_OUT" >&2
+        error "dayzctl apply failed - see output above"
+    }
+    log "Configuration applied successfully"
     log "Configuration applied successfully"
 
     log "Downloading/updating DayZ server (this may take a while)..."
-    if ! /usr/local/bin/dayzctl update; then
-        error "dayzctl update failed - check the error above"
-    fi
+    UPDATE_OUT=$(/usr/local/bin/dayzctl update 2>&1) || {
+        echo "$UPDATE_OUT" >&2
+        error "dayzctl update failed - see output above"
+    }
+    log "DayZ server downloaded/updated successfully"
     log "DayZ server downloaded/updated successfully"
 
     log ""
