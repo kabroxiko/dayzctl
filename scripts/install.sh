@@ -205,45 +205,24 @@ install_dayzctl() {
         return 0
     fi
 
-    log "Fetching latest version from GitHub redirect..."
-    log "CURL command: curl -fsSL -o /dev/null -w \"%{url_effective}\" \"https://github.com/kabroxiko/dayzctl/releases/latest\""
+    log "Fetching latest release from GitHub API..."
+    API_URL="https://api.github.com/repos/kabroxiko/dayzctl/releases/latest"
     
-    REDIRECT_URL=$(curl -fsSL -o /dev/null -w "%{url_effective}" "https://github.com/kabroxiko/dayzctl/releases/latest" 2>&1) || {
-        local curl_exit=$?
-        log "CURL exit code: $curl_exit"
-        error "Failed to follow redirect to latest release (curl exit code: $curl_exit)"
+    # Use Accept header to get JSON response
+    RELEASE_JSON=$(curl -fsSL -H "Accept: application/vnd.github.v3+json" "$API_URL" 2>/dev/null) || {
+        error "Failed to fetch release from GitHub API"
     }
 
-    log "Redirect URL: $REDIRECT_URL"
-
-    if [ -z "$REDIRECT_URL" ]; then
-        error "Empty redirect URL from GitHub"
+    if [ -z "$RELEASE_JSON" ]; then
+        error "Empty response from GitHub API"
     fi
 
-    # Check if the redirect URL contains a version tag
-    log "Checking if redirect URL contains version tag..."
-    if echo "$REDIRECT_URL" | grep -q '/tag/v[0-9.]*$'; then
-        log "Version tag found in redirect URL"
-        VERSION=$(echo "$REDIRECT_URL" | grep -o 'v[0-9.]*$' | sed 's/^v//')
-        log "Extracted version: $VERSION"
-    else
-    
-    
-    
-    
-        # No release exists - this is the first release
-        log "ERROR: No version tag found in redirect URL: $REDIRECT_URL"
-        log "This means there are no releases on the GitHub repository."
-        log "To fix this, create a release on GitHub:"
-        log "  https://github.com/kabroxiko/dayzctl/releases/new"
-        log ""
-        log "Alternatively, build from source:"
-        log "  go build -o /usr/local/bin/dayzctl ./cmd/dayzctl"
-        error "No releases available. Create a release on GitHub or use a local build."
-    fi
+    # Extract tag_name (e.g., "v1.0.0")
+    VERSION=$(echo "$RELEASE_JSON" | grep -o '"tag_name":"v[^"]*"' | sed 's/"tag_name":"v\([^"]*\)"/\1/')
 
     if [ -z "$VERSION" ]; then
-        error "Failed to extract version from redirect URL: $REDIRECT_URL"
+        log "GitHub API response: $RELEASE_JSON"
+        error "Failed to extract version from GitHub API response"
     fi
 
     ASSET="dayzctl_${VERSION}_${OS}_${ARCH}.tar.gz"
@@ -252,13 +231,9 @@ install_dayzctl() {
 
     log "Installing dayzctl v${VERSION}"
     log "Asset: $ASSET"
-    log "Download URL: $DL_URL"
 
     log "Downloading checksums..."
-    CHECKSUMS=$(curl -fsSL "$CHECKSUM_URL" 2>&1) || {
-        local curl_exit=$?
-        log "CURL exit code: $curl_exit"
-        log "CURL output: $CHECKSUMS"
+    CHECKSUMS=$(curl -fsSL "$CHECKSUM_URL" 2>/dev/null) || {
         error "Failed to download checksums from $CHECKSUM_URL"
     }
 
@@ -278,7 +253,7 @@ install_dayzctl() {
     TMP_FILE="${TMP_DIR}/${ASSET}"
 
     log "Downloading binary from $DL_URL..."
-    curl -fsSL -o "$TMP_FILE" "$DL_URL" 2>&1 || {
+    curl -fsSL -o "$TMP_FILE" "$DL_URL" 2>/dev/null || {
         rm -rf "$TMP_DIR"
         error "Failed to download ${ASSET} from $DL_URL"
     }
@@ -299,7 +274,7 @@ install_dayzctl() {
     log "Checksum verified successfully"
 
     log "Extracting archive..."
-    tar -xzf "$TMP_FILE" -C "$TMP_DIR" 2>&1 || {
+    tar -xzf "$TMP_FILE" -C "$TMP_DIR" 2>/dev/null || {
         rm -rf "$TMP_DIR"
         error "Failed to extract archive"
     }
