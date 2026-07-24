@@ -16,9 +16,9 @@ func SendCmd() *cobra.Command {
 		Args:  cobra.MinimumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			shared.RunCommand(func() error {
-				instanceName := shared.GetInstanceNameFromParent(cmd)
+				instanceName := shared.GetInstanceNameFromCommandChain(cmd)
 				if instanceName == "" {
-					return fmt.Errorf("instance name required")
+					return fmt.Errorf("instance name required. Usage: dayzctl rcon <instance> send <command>")
 				}
 				instance, err := shared.GetInstance(instanceName)
 				if err != nil {

@@ -137,13 +137,38 @@ func RestartInstance(instanceName string) error {
 }
 
 func GetInstanceNameFromParent(cmd *cobra.Command) string {
+	// Get the parent command
 	parent := cmd.Parent()
 	if parent == nil {
 		return ""
 	}
+	// Get the arguments of the parent command
+	// These are the args passed to the parent (e.g., "solo" in "rcon solo players")
 	args := parent.Flags().Args()
 	if len(args) > 0 {
 		return args[0]
+	}
+	return ""
+}
+
+// GetInstanceNameFromCommandChain gets the instance name from the command chain
+// This works for commands like "rcon solo players" where "solo" is the instance name
+func GetInstanceNameFromCommandChain(cmd *cobra.Command) string {
+	// Check if the parent has args (for commands like "rcon solo players")
+	parent := cmd.Parent()
+	if parent != nil {
+		parentArgs := parent.Flags().Args()
+		if len(parentArgs) > 0 {
+			return parentArgs[0]
+		}
+	}
+	// Check if the grandparent has args (for deeper nesting)
+	grandparent := cmd.Parent().Parent()
+	if grandparent != nil {
+		grandparentArgs := grandparent.Flags().Args()
+		if len(grandparentArgs) > 0 {
+			return grandparentArgs[0]
+		}
 	}
 	return ""
 }
