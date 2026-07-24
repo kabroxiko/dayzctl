@@ -36,9 +36,9 @@ RED='\033[0;31m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-log() { echo -e "${GREEN}[install]${NC} $*"; }
-warn() { echo -e "${YELLOW}[install] WARNING:${NC} $*" >&2; }
-error() { echo -e "${RED}[install] ERROR:${NC} $*" >&2; exit 1; }
+log() { echo -e "${GREEN}[install]${NC} $*" || true; }
+warn() { echo -e "${YELLOW}[install] WARNING:${NC} $*" >&2 || true; }
+error() { echo -e "${RED}[install] ERROR:${NC} $*" >&2 || exit 1; }
 
 # ============================================================================
 # Check root privileges
@@ -126,7 +126,8 @@ install_deps() {
                 rsync \
                 ca-certificates \
                 lib32gcc-s1 \
-                util-linux || error "Failed to install dependencies"
+                util-linux \
+                jq || error "Failed to install dependencies"
             ;;
         yum|fedora|rhel|centos)
             yum install -y -q \
@@ -136,7 +137,8 @@ install_deps() {
                 rsync \
                 ca-certificates \
                 glibc.i686 \
-                util-linux || error "Failed to install dependencies"
+                util-linux \
+                jq || error "Failed to install dependencies"
             ;;
         apk|alpine)
             apk add --no-cache \
@@ -146,7 +148,8 @@ install_deps() {
                 rsync \
                 ca-certificates \
                 libgcc \
-                util-linux || error "Failed to install dependencies"
+                util-linux \
+                jq || error "Failed to install dependencies"
             ;;
         *)
             error "Unsupported package manager: $DISTRO_FAMILY"
@@ -207,19 +210,24 @@ install_dayzctl() {
 
     log "Fetching latest release from GitHub API..."
     API_URL="https://api.github.com/repos/kabroxiko/dayzctl/releases/latest"
-    
-    log "CURL command: curl -fsSL -H \"Accept: application/vnd.github.v3+json\" \"$API_URL\""
-    
-    # Capture both stdout and stderr separately
+
     TMP_RESPONSE=$(mktemp)
     TMP_ERROR=$(mktemp)
-    
-    HTTP_CODE=$(curl -fsSL -H "Accept: application/vnd.github.v3+json" -w "%{http_code}" -o "$TMP_RESPONSE" "$API_URL" 2>"$TMP_ERROR" || echo "000")
-    
+
+    # Run curl and fail immediately on any curl error (no fallback).
+    HTTP_CODE=$(curl -sSL -H "Accept: application/vnd.github.v3+json" -w "%{http_code}" -o "$TMP_RESPONSE" "$API_URL" 2>"$TMP_ERROR")
+    CURL_EXIT=$?
+
+    if [ "$CURL_EXIT" -ne 0 ]; then
+        ERROR_MSG=$(cat "$TMP_ERROR" 2>/dev/null || echo "curl failed with exit $CURL_EXIT")
+        rm -f "$TMP_RESPONSE" "$TMP_ERROR"
+        error "curl failed: $ERROR_MSG"
+    fi
+
     log "HTTP status code: $HTTP_CODE"
-    
+
     if [ "$HTTP_CODE" != "200" ]; then
-        ERROR_MSG=$(cat "$TMP_ERROR" 2>/dev/null || echo "unknown error")
+        ERROR_MSG=$(cat "$TMP_ERROR" 2>/dev/null || echo "HTTP $HTTP_CODE")
         RESPONSE=$(cat "$TMP_RESPONSE" 2>/dev/null | head -20)
         rm -f "$TMP_RESPONSE" "$TMP_ERROR"
         log "HTTP error details: $ERROR_MSG"
@@ -235,14 +243,17 @@ install_dayzctl() {
     fi
     
     log "API response received successfully"
-    log "Response preview: $(echo "$RELEASE_JSON" | head -c 200)..."
 
-    # Extract tag_name (e.g., "v1.0.0")
-    VERSION=$(echo "$RELEASE_JSON" | grep -o '"tag_name":"v[^"]*"' | sed 's/"tag_name":"v\([^"]*\)"/\1/')
+    # jq should have been installed by install_deps(); fail fast if missing.
+    if ! command -v jq >/dev/null 2>&1; then
+        error "jq is required but not installed. Please run the installer with network access so packages can be installed, or install jq manually."
+    fi
 
-    if [ -z "$VERSION" ]; then
+    VERSION=$(echo "$RELEASE_JSON" | jq -r '.tag_name' | sed 's/^v//')
+
+    if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
         log "Full GitHub API response: $RELEASE_JSON"
-        error "Failed to extract version from GitHub API response"
+        error "Failed to extract version from GitHub API response (jq returned empty)"
     fi
 
     log "Extracted version: $VERSION"
