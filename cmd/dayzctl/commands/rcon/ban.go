@@ -17,12 +17,15 @@ func BanCmd() *cobra.Command {
 		Args:  cobra.MinimumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			shared.RunCommand(func() error {
-				instanceName := shared.GetInstanceNameFromCommandChain(cmd)
-				if instanceName == "" {
+				inst := shared.GetInstanceNameFromCommandChain(cmd)
+				if inst == "" {
+					inst = instanceName
+				}
+				if inst == "" {
 					return fmt.Errorf("instance name required. Usage: dayzctl rcon <instance> ban <player>")
 				}
 
-				instance, err := shared.GetInstance(instanceName)
+				instance, err := shared.GetInstance(inst)
 				if err != nil {
 					return err
 				}

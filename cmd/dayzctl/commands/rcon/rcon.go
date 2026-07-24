@@ -6,6 +6,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var instanceName string
+
 func RconCmd() *cobra.Command {
 	rconCmd := &cobra.Command{
 		Use:   "rcon [instance]",
@@ -26,6 +28,11 @@ Examples:
   dayzctl rcon solo players
   dayzctl rcon solo send status
   dayzctl rcon solo kick PlayerName`,
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			if len(args) > 0 {
+				instanceName = args[0]
+			}
+		},
 		Run: func(cmd *cobra.Command, args []string) {
 			// If no subcommand is given, show help
 			if err := cmd.Help(); err != nil {
