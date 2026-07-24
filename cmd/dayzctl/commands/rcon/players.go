@@ -44,7 +44,9 @@ func PlayersCmd() *cobra.Command {
 				}
 
 				client := rcon.New(instance.RCON.Port, instance.RCON.Password)
+				logger.Debug("PlayersAction calling RCON", "instance", instance.Name, "rconPort", instance.RCON.Port)
 				players, err := client.Players()
+				logger.Debug("PlayersAction RCON result", "instance", instance.Name, "playersCount", len(players), "err", err)
 				if err != nil {
 					return err
 				}

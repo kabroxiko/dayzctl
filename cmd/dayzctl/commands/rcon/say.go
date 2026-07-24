@@ -58,3 +58,31 @@ func SayCmd() *cobra.Command {
 		},
 	}
 }
+
+// SayAction sends a global chat message on the given instance.
+func SayAction(inst string, args []string) error {
+	if inst == "" {
+		return fmt.Errorf("instance name required. Usage: dayzctl rcon <instance> say <message>")
+	}
+	instance, err := shared.GetInstance(inst)
+	if err != nil {
+		return err
+	}
+	if err := isInstanceRunning(instance.Name); err != nil {
+		return err
+	}
+	if !instance.RCON.Enabled {
+		return fmt.Errorf("RCON is not enabled for instance: %s", instance.Name)
+	}
+
+	client := rcon.New(instance.RCON.Port, instance.RCON.Password)
+	message := strings.Join(args, " ")
+	response, err := client.Say(message)
+	if err != nil {
+		return err
+	}
+	if response != "" {
+		fmt.Println(response)
+	}
+	return nil
+}

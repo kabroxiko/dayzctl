@@ -52,6 +52,14 @@ func NewApp() *cli.App {
 					switch sub {
 					case "players":
 						return rcon.PlayersAction(inst, c.Args().Tail())
+					case "send":
+						return rcon.SendAction(inst, c.Args().Tail())
+					case "kick":
+						return rcon.KickAction(inst, c.Args().Tail())
+					case "ban":
+						return rcon.BanAction(inst, c.Args().Tail())
+					case "say":
+						return rcon.SayAction(inst, c.Args().Tail())
 					default:
 						// Forward unknown subcommands to Cobra-based handlers for now
 						return commands.ExecuteWithArgs(os.Args[1:])
