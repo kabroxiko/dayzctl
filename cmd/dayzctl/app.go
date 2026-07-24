@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"os"
+	"strings"
 
 	"github.com/kabroxiko/dayzctl/cmd/dayzctl/commands"
 	"github.com/kabroxiko/dayzctl/cmd/dayzctl/commands/rcon"
@@ -30,7 +31,20 @@ func NewApp() *cli.App {
 				return cli.Exit("failed to load config: "+err.Error(), 1)
 			}
 			shared.Config = cfg
-			logger.Init(c.String("log-level"))
+
+			// Support `--log-level` passed after subcommands by scanning os.Args.
+			lvl := c.String("log-level")
+			for i, a := range os.Args {
+				if strings.HasPrefix(a, "--log-level=") {
+					lvl = strings.SplitN(a, "=", 2)[1]
+					break
+				}
+				if a == "--log-level" && i+1 < len(os.Args) {
+					lvl = os.Args[i+1]
+					break
+				}
+			}
+			logger.Init(lvl)
 			return nil
 		},
 		Commands: []*cli.Command{
