@@ -1,6 +1,8 @@
 package rcon
 
 import (
+	"os"
+
 	"github.com/kabroxiko/dayzctl/internal/logger"
 
 	"github.com/spf13/cobra"
@@ -12,7 +14,6 @@ func RconCmd() *cobra.Command {
 	rconCmd := &cobra.Command{
 		Use:   "rcon [instance]",
 		Short: "RCON commands for an instance",
-		Args:  cobra.ExactArgs(1),
 		Long: `RCON commands for a specific instance.
 
 Usage:
@@ -30,8 +31,24 @@ Examples:
   dayzctl rcon solo send status
   dayzctl rcon solo kick PlayerName`,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			// Prefer Cobra-provided args when available
 			if len(args) > 0 {
 				instanceName = args[0]
+				return
+			}
+
+			// Fallback: parse os.Args to find the token after "rcon"
+			// Skip known subcommand names so we don't confuse them with instance names
+			known := map[string]struct{}{"send": {}, "players": {}, "kick": {}, "ban": {}, "say": {}, "help": {}, "-h": {}, "--help": {}}
+			argv := os.Args
+			for i := 0; i < len(argv); i++ {
+				if argv[i] == "rcon" && i+1 < len(argv) {
+					cand := argv[i+1]
+					if _, ok := known[cand]; !ok && len(cand) > 0 && cand[0] != '-' {
+						instanceName = cand
+					}
+					break
+				}
 			}
 		},
 		Run: func(cmd *cobra.Command, args []string) {
