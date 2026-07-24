@@ -15,11 +15,16 @@ func PlayersCmd() *cobra.Command {
 		Short: "List players on an instance",
 		Run: func(cmd *cobra.Command, args []string) {
 			shared.RunCommand(func() error {
-				// Get instance name from the parent command's persistent pre-run
-				instanceName := GetInstanceName()
-				if instanceName == "" {
+				// Get instance name from parent's args
+				parent := cmd.Parent()
+				if parent == nil {
+					return fmt.Errorf("parent command not found")
+				}
+				parentArgs := parent.Flags().Args()
+				if len(parentArgs) == 0 {
 					return fmt.Errorf("instance name required. Usage: dayzctl rcon <instance> players")
 				}
+				instanceName := parentArgs[0]
 
 				instance, err := shared.GetInstance(instanceName)
 				if err != nil {

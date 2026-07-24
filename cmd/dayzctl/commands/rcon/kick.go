@@ -17,10 +17,16 @@ func KickCmd() *cobra.Command {
 		Args:  cobra.MinimumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			shared.RunCommand(func() error {
-				instanceName := GetInstanceName()
-				if instanceName == "" {
+				parent := cmd.Parent()
+				if parent == nil {
+					return fmt.Errorf("parent command not found")
+				}
+				parentArgs := parent.Flags().Args()
+				if len(parentArgs) == 0 {
 					return fmt.Errorf("instance name required. Usage: dayzctl rcon <instance> kick <player>")
 				}
+				instanceName := parentArgs[0]
+
 				instance, err := shared.GetInstance(instanceName)
 				if err != nil {
 					return err

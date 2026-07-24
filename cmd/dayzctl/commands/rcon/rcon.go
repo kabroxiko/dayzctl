@@ -4,8 +4,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var instanceName string
-
 func RconCmd() *cobra.Command {
 	rconCmd := &cobra.Command{
 		Use:   "rcon [instance]",
@@ -19,10 +17,6 @@ Commands:
   rcon <instance> ban <player>       Ban a player
   rcon <instance> say <message>      Send global message`,
 		Args: cobra.ExactArgs(1),
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			// Store instance name in a package variable
-			instanceName = args[0]
-		},
 		Run: func(cmd *cobra.Command, args []string) {
 			cmd.Help()
 		},
@@ -37,9 +31,4 @@ Commands:
 	)
 
 	return rconCmd
-}
-
-// GetInstanceName returns the instance name from the parent command
-func GetInstanceName() string {
-	return instanceName
 }
