@@ -17,7 +17,7 @@ func BanCmd() *cobra.Command {
 		Args:  cobra.MinimumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			shared.RunCommand(func() error {
-				instanceName := GetInstanceFromContext(cmd)
+				instanceName := GetInstanceName()
 				if instanceName == "" {
 					return fmt.Errorf("instance name required. Usage: dayzctl rcon <instance> ban <player>")
 				}
