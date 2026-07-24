@@ -296,6 +296,10 @@ install_dayzctl() {
 
 
 
+
+
+
+
     ACTUAL_CHECKSUM=$(sha256sum "$TMP_FILE" | awk '{print $1}')
     log "Actual checksum: $ACTUAL_CHECKSUM"
 
