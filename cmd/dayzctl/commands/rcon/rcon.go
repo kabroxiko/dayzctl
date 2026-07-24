@@ -1,10 +1,16 @@
 package rcon
 
 import (
+	"context"
+
 	"github.com/spf13/cobra"
 )
 
-// RconCmd returns the rcon command
+// Context key for storing instance name
+type contextKey string
+
+const InstanceKey contextKey = "instance"
+
 func RconCmd() *cobra.Command {
 	rconCmd := &cobra.Command{
 		Use:   "rcon [instance]",
@@ -18,6 +24,15 @@ Commands:
   rcon <instance> ban <player>       Ban a player
   rcon <instance> say <message>      Send global message`,
 		Args: cobra.ExactArgs(1),
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			// Store the instance name in the context
+			ctx := context.WithValue(cmd.Context(), InstanceKey, args[0])
+			cmd.SetContext(ctx)
+		},
+		Run: func(cmd *cobra.Command, args []string) {
+			// Show help if no subcommand is provided
+			cmd.Help()
+		},
 	}
 
 	rconCmd.AddCommand(
@@ -29,4 +44,14 @@ Commands:
 	)
 
 	return rconCmd
+}
+
+// GetInstanceFromContext retrieves the instance name from the context
+func GetInstanceFromContext(cmd *cobra.Command) string {
+	if val := cmd.Context().Value(InstanceKey); val != nil {
+		if instance, ok := val.(string); ok {
+			return instance
+		}
+	}
+	return ""
 }

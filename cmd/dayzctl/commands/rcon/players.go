@@ -15,10 +15,12 @@ func PlayersCmd() *cobra.Command {
 		Short: "List players on an instance",
 		Run: func(cmd *cobra.Command, args []string) {
 			shared.RunCommand(func() error {
-				instanceName := shared.GetInstanceNameFromCommandChain(cmd)
+				// Get instance name from context
+				instanceName := GetInstanceFromContext(cmd)
 				if instanceName == "" {
 					return fmt.Errorf("instance name required. Usage: dayzctl rcon <instance> players")
 				}
+				
 				instance, err := shared.GetInstance(instanceName)
 				if err != nil {
 					return err
