@@ -4,6 +4,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// RconCmd returns the rcon command
 func RconCmd() *cobra.Command {
 	rconCmd := &cobra.Command{
 		Use:   "rcon [instance]",
