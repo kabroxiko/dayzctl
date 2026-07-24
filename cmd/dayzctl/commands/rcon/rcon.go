@@ -12,6 +12,7 @@ func RconCmd() *cobra.Command {
 	rconCmd := &cobra.Command{
 		Use:   "rcon [instance]",
 		Short: "RCON commands for an instance",
+		Args:  cobra.ExactArgs(1),
 		Long: `RCON commands for a specific instance.
 
 Usage:
