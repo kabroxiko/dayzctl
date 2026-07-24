@@ -297,6 +297,11 @@ install_dayzctl() {
     log "dayzctl v${VERSION} installed successfully: $(/usr/local/bin/dayzctl version)"
 }
 
+
+
+
+
+
 # ============================================================================
 # Create default config.yaml
 # ============================================================================
