@@ -31,6 +31,8 @@ Examples:
   dayzctl rcon solo send status
   dayzctl rcon solo kick PlayerName`,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			// debug log
+			logger.Debug("rcon.PersistentPreRun args", "args", args, "osArgs", os.Args)
 			// Prefer Cobra-provided args when available
 			if len(args) > 0 {
 				instanceName = args[0]

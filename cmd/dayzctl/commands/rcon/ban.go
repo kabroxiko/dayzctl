@@ -17,7 +17,16 @@ func BanCmd() *cobra.Command {
 		Args:  cobra.MinimumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			shared.RunCommand(func() error {
-				inst := shared.GetInstanceNameFromCommandChain(cmd)
+				// Expect instance as first arg after rewrite in ExecuteWithArgs
+				inst := ""
+				if len(args) > 0 {
+					inst = args[0]
+					// shift remaining args so player argument is first
+					args = args[1:]
+				}
+				if inst == "" {
+					inst = shared.GetInstanceNameFromCommandChain(cmd)
+				}
 				if inst == "" {
 					inst = instanceName
 				}

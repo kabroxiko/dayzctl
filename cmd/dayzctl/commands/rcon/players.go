@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/kabroxiko/dayzctl/cmd/dayzctl/commands/shared"
+	"github.com/kabroxiko/dayzctl/internal/logger"
 	"github.com/kabroxiko/dayzctl/internal/rcon"
 	"github.com/spf13/cobra"
 )
@@ -15,7 +16,15 @@ func PlayersCmd() *cobra.Command {
 		Short: "List players on an instance",
 		Run: func(cmd *cobra.Command, args []string) {
 			shared.RunCommand(func() error {
-				inst := shared.GetInstanceNameFromCommandChain(cmd)
+				logger.Debug("PlayersCmd run", "cmdArgs", args, "parentArgs", cmd.Parent().Flags().Args())
+				// Expect instance as first arg after rewrite in ExecuteWithArgs
+				inst := ""
+				if len(args) > 0 {
+					inst = args[0]
+				}
+				if inst == "" {
+					inst = shared.GetInstanceNameFromCommandChain(cmd)
+				}
 				if inst == "" {
 					inst = instanceName
 				}
