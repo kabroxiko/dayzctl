@@ -226,10 +226,11 @@ func (c *Client) Players() ([]Player, error) {
 			}
 			continue
 		}
-		if strings.Contains(line, "players in total") || strings.Contains(line, "---") {
+		if strings.Contains(line, "players in total") {
 			break
 		}
-		if strings.Contains(line, "[#]") {
+		if strings.Contains(line, "[#]") || strings.Contains(line, "---") {
+			// header or separator line; skip
 			continue
 		}
 		if line == "" {
