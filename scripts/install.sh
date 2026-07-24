@@ -208,22 +208,44 @@ install_dayzctl() {
     log "Fetching latest release from GitHub API..."
     API_URL="https://api.github.com/repos/kabroxiko/dayzctl/releases/latest"
     
-    # Use Accept header to get JSON response
-    RELEASE_JSON=$(curl -fsSL -H "Accept: application/vnd.github.v3+json" "$API_URL" 2>/dev/null) || {
-        error "Failed to fetch release from GitHub API"
-    }
-
+    log "CURL command: curl -fsSL -H \"Accept: application/vnd.github.v3+json\" \"$API_URL\""
+    
+    # Capture both stdout and stderr separately
+    TMP_RESPONSE=$(mktemp)
+    TMP_ERROR=$(mktemp)
+    
+    HTTP_CODE=$(curl -fsSL -H "Accept: application/vnd.github.v3+json" -w "%{http_code}" -o "$TMP_RESPONSE" "$API_URL" 2>"$TMP_ERROR" || echo "000")
+    
+    log "HTTP status code: $HTTP_CODE"
+    
+    if [ "$HTTP_CODE" != "200" ]; then
+        ERROR_MSG=$(cat "$TMP_ERROR" 2>/dev/null || echo "unknown error")
+        RESPONSE=$(cat "$TMP_RESPONSE" 2>/dev/null | head -20)
+        rm -f "$TMP_RESPONSE" "$TMP_ERROR"
+        log "HTTP error details: $ERROR_MSG"
+        log "Response preview: $RESPONSE"
+        error "GitHub API returned HTTP $HTTP_CODE. Check network connectivity and repository access."
+    fi
+    
+    RELEASE_JSON=$(cat "$TMP_RESPONSE")
+    rm -f "$TMP_RESPONSE" "$TMP_ERROR"
+    
     if [ -z "$RELEASE_JSON" ]; then
         error "Empty response from GitHub API"
     fi
+    
+    log "API response received successfully"
+    log "Response preview: $(echo "$RELEASE_JSON" | head -c 200)..."
 
     # Extract tag_name (e.g., "v1.0.0")
     VERSION=$(echo "$RELEASE_JSON" | grep -o '"tag_name":"v[^"]*"' | sed 's/"tag_name":"v\([^"]*\)"/\1/')
 
     if [ -z "$VERSION" ]; then
-        log "GitHub API response: $RELEASE_JSON"
+        log "Full GitHub API response: $RELEASE_JSON"
         error "Failed to extract version from GitHub API response"
     fi
+
+    log "Extracted version: $VERSION"
 
     ASSET="dayzctl_${VERSION}_${OS}_${ARCH}.tar.gz"
     DL_URL="https://github.com/kabroxiko/dayzctl/releases/download/v${VERSION}/${ASSET}"
@@ -231,6 +253,7 @@ install_dayzctl() {
 
     log "Installing dayzctl v${VERSION}"
     log "Asset: $ASSET"
+    log "Download URL: $DL_URL"
 
     log "Downloading checksums..."
     CHECKSUMS=$(curl -fsSL "$CHECKSUM_URL" 2>/dev/null) || {
@@ -253,10 +276,12 @@ install_dayzctl() {
     TMP_FILE="${TMP_DIR}/${ASSET}"
 
     log "Downloading binary from $DL_URL..."
-    curl -fsSL -o "$TMP_FILE" "$DL_URL" 2>/dev/null || {
+    HTTP_CODE=$(curl -fsSL -w "%{http_code}" -o "$TMP_FILE" "$DL_URL" 2>/dev/null || echo "000")
+    
+    if [ "$HTTP_CODE" != "200" ]; then
         rm -rf "$TMP_DIR"
-        error "Failed to download ${ASSET} from $DL_URL"
-    }
+        error "Failed to download ${ASSET} (HTTP $HTTP_CODE) from $DL_URL"
+    fi
 
     if [ ! -f "$TMP_FILE" ]; then
         rm -rf "$TMP_DIR"
@@ -296,15 +321,6 @@ install_dayzctl() {
 
     log "dayzctl v${VERSION} installed successfully: $(/usr/local/bin/dayzctl version)"
 }
-
-
-
-
-
-
-
-
-
 
 # ============================================================================
 # Create default config.yaml
