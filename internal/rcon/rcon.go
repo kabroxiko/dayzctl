@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/kabroxiko/dayzctl/internal/logger"
 )
 
 // Client implements BattlEye RCon protocol matching bercon-cli
@@ -115,6 +117,7 @@ func (c *Client) SendCommand(command string) (string, error) {
 
 	response := buf[7:n]
 	if len(response) < 3 {
+		logger.Debug("RCON SendCommand: response too short", "cmd", command, "len", len(response))
 		return "", nil
 	}
 
@@ -122,7 +125,9 @@ func (c *Client) SendCommand(command string) (string, error) {
 		return "", nil
 	}
 
-	return string(response[2:]), nil
+	respStr := string(response[2:])
+	logger.Debug("RCON SendCommand: raw response", "cmd", command, "resp", respStr)
+	return respStr, nil
 }
 
 // Send sends a command (simplified interface)
@@ -206,6 +211,8 @@ func (c *Client) Players() ([]Player, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	logger.Debug("RCON Players: raw response", "resp", resp)
 
 	lines := strings.Split(strings.TrimSpace(resp), "\n")
 	var players []Player
