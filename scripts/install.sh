@@ -288,6 +288,10 @@ install_dayzctl() {
         error "Downloaded file not found: $TMP_FILE"
     fi
 
+
+
+
+
     ACTUAL_CHECKSUM=$(sha256sum "$TMP_FILE" | awk '{print $1}')
     log "Actual checksum: $ACTUAL_CHECKSUM"
 
