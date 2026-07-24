@@ -15,6 +15,7 @@ func PlayersCmd() *cobra.Command {
 		Short: "List players on an instance",
 		Run: func(cmd *cobra.Command, args []string) {
 			shared.RunCommand(func() error {
+				instanceName := shared.GetInstanceNameFromCommandChain(cmd)
 				if instanceName == "" {
 					return fmt.Errorf("instance name required")
 				}

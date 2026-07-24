@@ -16,15 +16,10 @@ func SayCmd() *cobra.Command {
 		Args:  cobra.MinimumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			shared.RunCommand(func() error {
-				parent := cmd.Parent()
-				if parent == nil {
-					return fmt.Errorf("parent command not found")
-				}
-				parentArgs := parent.Flags().Args()
-				if len(parentArgs) == 0 {
+				instanceName := shared.GetInstanceNameFromCommandChain(cmd)
+				if instanceName == "" {
 					return fmt.Errorf("instance name required. Usage: dayzctl rcon <instance> say <message>")
 				}
-				instanceName := parentArgs[0]
 
 				instance, err := shared.GetInstance(instanceName)
 				if err != nil {

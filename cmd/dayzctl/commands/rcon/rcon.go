@@ -1,10 +1,10 @@
 package rcon
 
 import (
+	"github.com/kabroxiko/dayzctl/internal/logger"
+
 	"github.com/spf13/cobra"
 )
-
-var instanceName string
 
 func RconCmd() *cobra.Command {
 	rconCmd := &cobra.Command{
@@ -26,15 +26,11 @@ Examples:
   dayzctl rcon solo players
   dayzctl rcon solo send status
   dayzctl rcon solo kick PlayerName`,
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			// args[0] is the instance name
-			if len(args) > 0 {
-				instanceName = args[0]
-			}
-		},
 		Run: func(cmd *cobra.Command, args []string) {
 			// If no subcommand is given, show help
-			cmd.Help()
+			if err := cmd.Help(); err != nil {
+				logger.Error("failed to show help", "error", err)
+			}
 		},
 	}
 
